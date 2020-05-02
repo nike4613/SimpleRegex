@@ -14,12 +14,11 @@ namespace SimpleRegex
             JumpIfCharIsNot, JumpIfCharNotMatches,
             Advance, Backtrack,
             JumpIfOutOfBounds,
-            StorePos, LoadPos,
+            PushPos, PopPos,
         }
 
         private readonly IReadOnlyList<ushort> instructions;
         private readonly IReadOnlyList<CharacterGroupExpression> characterGroups;
-        public ushort PosArraySize { get; set; }
 
         public RegexInterpreter(IReadOnlyList<ushort> instructions, IReadOnlyList<CharacterGroupExpression> characterGroups)
         {
@@ -34,7 +33,7 @@ namespace SimpleRegex
             if (startAt < 0 || startAt > text.Length)
                 throw new ArgumentException("Start position outside of range of string", nameof(text));
 
-            var positions = new int[PosArraySize];
+            var positions = new Stack<int>();
 
             var insns = instructions.ToArray();
             int iptr = 0;
@@ -47,23 +46,17 @@ namespace SimpleRegex
                 {
                     case Instruction.Nop: continue;
                     case Instruction.Match:
-                        return Match.FromOffsets(positions[0] /* this is just known */, charPos);
+                        return Match.FromOffsets(positions.Last(), charPos);
                     case Instruction.Reject:
                         return null;
-                    case Instruction.StorePos:
+                    case Instruction.PushPos:
                         {
-                            var index = insns[iptr++];
-                            if (index >= positions.Length)
-                                throw new InvalidOperationException("Bytecode accesses invalid position");
-                            positions[index] = charPos;
+                            positions.Push(charPos);
                             continue;
                         }
-                    case Instruction.LoadPos:
+                    case Instruction.PopPos:
                         {
-                            var index = insns[iptr++];
-                            if (index >= positions.Length)
-                                throw new InvalidOperationException("Bytecode accesses invalid position");
-                            charPos = positions[index];
+                            charPos = positions.Pop();
                             continue;
                         }
                     case Instruction.Advance:
@@ -159,8 +152,8 @@ namespace SimpleRegex
                 Instruction.Reject => nameof(Instruction.Reject),
                 Instruction.Advance => nameof(Instruction.Advance),
                 Instruction.Backtrack => nameof(Instruction.Backtrack),
-                Instruction.StorePos => DisassemblePositionInsn(nameof(Instruction.StorePos), insns, ref pos),
-                Instruction.LoadPos => DisassemblePositionInsn(nameof(Instruction.LoadPos), insns, ref pos),
+                Instruction.PushPos => nameof(Instruction.PushPos),
+                Instruction.PopPos => nameof(Instruction.PopPos),
                 Instruction.Jump => DisassembleJumpInsn(nameof(Instruction.Jump) + "\t", insns, ref pos),
                 Instruction.JumpIfOutOfBounds => DisassembleJumpInsn(nameof(Instruction.JumpIfOutOfBounds), insns, ref pos),
                 Instruction.JumpIfCharIs => DisassembleJumpIfCharIs(nameof(Instruction.JumpIfCharIs), insns, ref pos),
@@ -170,12 +163,6 @@ namespace SimpleRegex
                 _ => "<unknown opcode>",
             };
 
-        private string DisassemblePositionInsn(string name, ushort[] insns, ref int pos)
-        {
-            if (pos >= insns.Length) return $"<partial {name}>";
-            var loc = insns[pos++];
-            return $"{name}\t{loc:X4}{(loc >= PosArraySize ? " <invalid position>" : "")}";
-        }
         private static string DisassembleJumpInsn(string name, ushort[] insns, ref int pos)
         {
             if (pos >= insns.Length) return $"<partial {name}>";

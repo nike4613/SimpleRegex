@@ -12,7 +12,6 @@ namespace SimpleRegex
         private readonly RegexInterpreter interpreter;
 
         private int lastGreedyQuantifierBacktraceLoc = -1;
-        private ushort nextPosSlot = 0;
 
         public RegexCompiler()
         {
@@ -35,8 +34,6 @@ namespace SimpleRegex
 
             Emit(RegexInterpreter.Instruction.Match);
 
-            interpreter.PosArraySize = nextPosSlot;
-
             return this;
         }
 
@@ -52,11 +49,10 @@ namespace SimpleRegex
 
         private IEnumerable<int> EmitTryMatchGroupExpression(GroupExpression group, out IEnumerable<int> continuePartial)
         {
-            var posSpot = nextPosSlot++;
-            Emit(RegexInterpreter.Instruction.StorePos, posSpot);
+            Emit(RegexInterpreter.Instruction.PushPos);
             var openJump = EmitPartialJump(RegexInterpreter.Instruction.Jump);
             var onFail = instructions.Count;
-            Emit(RegexInterpreter.Instruction.LoadPos, posSpot);
+            Emit(RegexInterpreter.Instruction.PopPos);
             var exitJump = EmitPartialJump(RegexInterpreter.Instruction.Jump);
             RepairPartialJump(openJump, instructions.Count);
 
