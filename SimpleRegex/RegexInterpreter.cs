@@ -15,11 +15,14 @@ namespace SimpleRegex
             Advance, Backtrack,
             JumpIfOutOfBounds,
             PushPos, PopPos,
-            Call, Return
+            Call, Return,
+
+            PushLocal, IncLocal, PopLocal, DecLocalOrPopJump,
         }
 
         private readonly IReadOnlyList<ushort> instructions;
         private readonly IReadOnlyList<CharacterGroupExpression> characterGroups;
+        internal int localCount;
 
         public RegexInterpreter(IReadOnlyList<ushort> instructions, IReadOnlyList<CharacterGroupExpression> characterGroups)
         {
@@ -37,6 +40,8 @@ namespace SimpleRegex
             var positions = new Stack<int>();
 
             var callstack = new Stack<int>();
+
+            var locals = new Stack<int>[localCount];
 
             var insns = instructions.ToArray();
             int iptr = 0;
@@ -135,6 +140,39 @@ namespace SimpleRegex
                             continue;
                         }
 
+                    case Instruction.PushLocal:
+                        {
+                            var index = insns[iptr++];
+                            if (locals[index] == null)
+                                locals[index] = new Stack<int>(1);
+                            locals[index].Push(0);
+                            continue;
+                        }
+                    case Instruction.IncLocal:
+                        {
+                            var index = insns[iptr++];
+                            var stack = locals[index];
+                            stack.Push(stack.Pop() + 1);
+                            continue;
+                        }
+                    case Instruction.PopLocal:
+                        {
+                            var index = insns[iptr++];
+                            locals[index].Pop();
+                            continue;
+                        }
+                    case Instruction.DecLocalOrPopJump:
+                        {
+                            var index = insns[iptr++];
+                            var target = (short)insns[iptr++];
+
+                            var stack = locals[index];
+                            var value = stack.Pop() - 1;
+                            if (value >= 0) stack.Push(value);
+                            else iptr += target;
+                            continue;
+                        }
+
                     default:
                         throw new InvalidOperationException("Unknown opcode");
                 }
@@ -178,33 +216,56 @@ namespace SimpleRegex
                 Instruction.JumpIfCharIsNot => DisassembleJumpIfCharIs(nameof(Instruction.JumpIfCharIsNot), insns, ref pos),
                 Instruction.JumpIfCharMatches => DisassembleJumpIfCharMatches(nameof(Instruction.JumpIfCharMatches), insns, ref pos),
                 Instruction.JumpIfCharNotMatches => DisassembleJumpIfCharMatches(nameof(Instruction.JumpIfCharNotMatches), insns, ref pos),
+                Instruction.PushLocal => DisassembleLocalInsn(nameof(Instruction.PushLocal), insns, ref pos),
+                Instruction.IncLocal => DisassembleLocalInsn(nameof(Instruction.IncLocal), insns, ref pos),
+                Instruction.PopLocal => DisassembleLocalInsn(nameof(Instruction.PopLocal), insns, ref pos),
+                Instruction.DecLocalOrPopJump => DisassembleLocalJump(nameof(Instruction.DecLocalOrPopJump), insns, ref pos),
                 _ => "<unknown opcode>",
             };
 
+        private string DisassembleLocalInsn(string name, ushort[] insns, ref int pos)
+        {
+            if (pos >= insns.Length) return Partial(name);
+            var local = insns[pos++];
+            return $"{name}\t{local:X4}" + (local < localCount ? "" : "<invalid local>");
+        }
+        private string DisassembleLocalJump(string name, ushort[] insns, ref int pos)
+        {
+            if (pos >= insns.Length) return Partial(name);
+            var local = insns[pos++];
+            if (pos >= insns.Length) return Partial(name, local.ToString("X4"));
+            var target = (short)insns[pos++];
+            return $"{name}\t{local:X4} {JumpTarget(target, pos)}" + (local < localCount ? "" : "<invalid local>");
+        }
         private static string DisassembleJumpInsn(string name, ushort[] insns, ref int pos)
         {
-            if (pos >= insns.Length) return $"<partial {name}>";
+            if (pos >= insns.Length) return Partial(name);
             var target = (short)insns[pos++];
-            return $"{name}\t{target:+0;-0;\0} [{pos + target:X4}]";
+            return $"{name}\t{JumpTarget(target, pos)}";
         }
         private static string DisassembleJumpIfCharIs(string name, ushort[] insns, ref int pos)
         {
-            if (pos >= insns.Length) return $"<partial {name}>";
+            if (pos >= insns.Length) return Partial(name);
             var compareTo = (char)insns[pos++];
-            if (pos >= insns.Length) return $"<partial {name} '{compareTo}'>";
+            if (pos >= insns.Length) return Partial(name, $"'{compareTo}'");
             var target = (short)insns[pos++];
-            return $"{name} '{compareTo}'\t{target:+0;-0;\0} [{pos + target:X4}]";
+            return $"{name} '{compareTo}'\t{JumpTarget(target, pos)}";
         }
         private string DisassembleJumpIfCharMatches(string name, ushort[] insns, ref int pos)
         {
-            if (pos >= insns.Length) return $"<partial {name}>";
+            if (pos >= insns.Length) return Partial(name);
             var groupIndex = insns[pos++];
             var groupStr = "<invalid group>";
             if (groupIndex < characterGroups.Count)
                 groupStr = characterGroups[groupIndex].ToString();
-            if (pos >= insns.Length) return $"<partial {name} {groupStr}>";
+            if (pos >= insns.Length) return Partial(name, groupStr);
             var target = (short)insns[pos++];
-            return $"{name} {groupStr}\t{target:+0;-0;\0} [{pos + target:X4}]";
+            return $"{name} {groupStr}\t{JumpTarget(target, pos)}";
         }
+
+        private static string JumpTarget(int target, int pos)
+            => $"{target:+0;-0;\0} [{pos + target:X4}]";
+        private static string Partial(params string[] parts)
+            => $"<partial {string.Join(" ", parts)}>";
     }
 }
