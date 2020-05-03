@@ -18,6 +18,7 @@ namespace SimpleRegex
             Call, Return,
 
             PushLocal, IncLocal, PopLocal, DecLocalOrPopJump,
+            JumpIfLocalZero,
         }
 
         private readonly IReadOnlyList<ushort> instructions;
@@ -172,6 +173,16 @@ namespace SimpleRegex
                             else iptr += target;
                             continue;
                         }
+                    case Instruction.JumpIfLocalZero:
+                        {
+                            var index = insns[iptr++];
+                            var target = (short)insns[iptr++];
+
+                            var stack = locals[index];
+                            if (stack.Peek() == 0)
+                                iptr += target;
+                            continue;
+                        }
 
                     default:
                         throw new InvalidOperationException("Unknown opcode");
@@ -216,10 +227,11 @@ namespace SimpleRegex
                 Instruction.JumpIfCharIsNot => DisassembleJumpIfCharIs(nameof(Instruction.JumpIfCharIsNot), insns, ref pos),
                 Instruction.JumpIfCharMatches => DisassembleJumpIfCharMatches(nameof(Instruction.JumpIfCharMatches), insns, ref pos),
                 Instruction.JumpIfCharNotMatches => DisassembleJumpIfCharMatches(nameof(Instruction.JumpIfCharNotMatches), insns, ref pos),
-                Instruction.PushLocal => DisassembleLocalInsn(nameof(Instruction.PushLocal), insns, ref pos),
-                Instruction.IncLocal => DisassembleLocalInsn(nameof(Instruction.IncLocal), insns, ref pos),
-                Instruction.PopLocal => DisassembleLocalInsn(nameof(Instruction.PopLocal), insns, ref pos),
+                Instruction.PushLocal => DisassembleLocalInsn(nameof(Instruction.PushLocal) + "\t", insns, ref pos),
+                Instruction.IncLocal => DisassembleLocalInsn(nameof(Instruction.IncLocal) + "\t", insns, ref pos),
+                Instruction.PopLocal => DisassembleLocalInsn(nameof(Instruction.PopLocal) + "\t", insns, ref pos),
                 Instruction.DecLocalOrPopJump => DisassembleLocalJump(nameof(Instruction.DecLocalOrPopJump), insns, ref pos),
+                Instruction.JumpIfLocalZero => DisassembleLocalJump(nameof(Instruction.JumpIfLocalZero), insns, ref pos),
                 _ => "<unknown opcode>",
             };
 
