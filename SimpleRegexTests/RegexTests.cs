@@ -89,6 +89,12 @@ namespace SimpleRegexTests
         [InlineData(@"a+a", "aa", true, 0, 2)]
         [InlineData(@"a+a", "aaa", true, 0, 3)]
         [InlineData(@"a+a", "aaaa", true, 0, 4)]
+        [InlineData(@"a?", "", true, 0, 0)]
+        [InlineData(@"a?", "a", true, 0, 1)]
+        [InlineData(@"a?", "b", true, 0, 0)]
+        [InlineData(@"a?a", "", false, 0, 0)]
+        [InlineData(@"a?a", "a", true, 0, 1)]
+        [InlineData(@"a?a", "aa", true, 0, 2)]
         public void TryMatch(string regex, string text, bool expect, int start, int len)
         {
             var obj = new Regex(regex);

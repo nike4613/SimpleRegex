@@ -168,9 +168,14 @@ namespace SimpleRegex
                             var target = (short)insns[iptr++];
 
                             var stack = locals[index];
-                            var value = stack.Pop() - 1;
-                            if (value >= 0) stack.Push(value);
-                            else iptr += target;
+                            if (stack.Count < 1) 
+                                iptr += target;
+                            else
+                            {
+                                var value = stack.Pop() - 1;
+                                if (value >= 0) stack.Push(value);
+                                else iptr += target;
+                            }
                             continue;
                         }
                     case Instruction.JumpIfLocalZero:
