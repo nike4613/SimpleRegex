@@ -15,6 +15,7 @@ namespace SimpleRegex
             Advance, Backtrack,
             JumpIfOutOfBounds,
             PushPos, PopPos,
+            Call, Return
         }
 
         private readonly IReadOnlyList<ushort> instructions;
@@ -34,6 +35,8 @@ namespace SimpleRegex
                 throw new ArgumentException("Start position outside of range of string", nameof(text));
 
             var positions = new Stack<int>();
+
+            var callstack = new Stack<int>();
 
             var insns = instructions.ToArray();
             int iptr = 0;
@@ -73,6 +76,19 @@ namespace SimpleRegex
                         {
                             var target = (short)insns[iptr++];
                             iptr += target;
+                            continue;
+                        }
+                    case Instruction.Call:
+                        {
+                            var target = (short)insns[iptr++];
+                            callstack.Push(iptr);
+                            iptr += target;
+                            continue;
+                        }
+                    case Instruction.Return:
+                        {
+                            if (callstack.Count > 0) // explicitly make this a non-erroring no-op if not in a call
+                                iptr = callstack.Pop();
                             continue;
                         }
                     case Instruction.JumpIfOutOfBounds:
@@ -154,7 +170,9 @@ namespace SimpleRegex
                 Instruction.Backtrack => nameof(Instruction.Backtrack),
                 Instruction.PushPos => nameof(Instruction.PushPos),
                 Instruction.PopPos => nameof(Instruction.PopPos),
+                Instruction.Return => nameof(Instruction.Return),
                 Instruction.Jump => DisassembleJumpInsn(nameof(Instruction.Jump) + "\t", insns, ref pos),
+                Instruction.Call => DisassembleJumpInsn(nameof(Instruction.Call) + "\t", insns, ref pos),
                 Instruction.JumpIfOutOfBounds => DisassembleJumpInsn(nameof(Instruction.JumpIfOutOfBounds), insns, ref pos),
                 Instruction.JumpIfCharIs => DisassembleJumpIfCharIs(nameof(Instruction.JumpIfCharIs), insns, ref pos),
                 Instruction.JumpIfCharIsNot => DisassembleJumpIfCharIs(nameof(Instruction.JumpIfCharIsNot), insns, ref pos),
