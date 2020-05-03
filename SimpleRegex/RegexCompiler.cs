@@ -158,9 +158,7 @@ namespace SimpleRegex
             Emit(RegexInterpreter.Instruction.PopPos);
             EmitJumpTriple(RegexInterpreter.Instruction.DecLocalOrPopJump, matchCounterLocal, prevGreedyQuantifier);
             var decToZeroPartial = EmitPartialJumpTriple(RegexInterpreter.Instruction.DecLocalOrPopJump, matchCounterLocal);
-            //var decToZeroPartial = EmitPartialJumpTriple(RegexInterpreter.Instruction.DecLocalOrPopJump, matchCounterLocal);
             var callPartial = EmitPartialJump(RegexInterpreter.Instruction.Call);
-            // = EmitPartialJumpTriple(RegexInterpreter.Instruction.JumpIfLocalZero, matchCounterLocal);
             Emit(RegexInterpreter.Instruction.IncLocal, matchCounterLocal);
             var ifNoBacktrack = Current;
             Emit(RegexInterpreter.Instruction.Return);
