@@ -77,35 +77,6 @@ namespace SimpleRegex
         public override string ToString() => Character.ToString();
     }
 
-    internal sealed class ArbitraryCharacterGroup : CharacterGroupExpression, ICollection<char>
-    {
-        private readonly HashSet<char> matchOptions = new HashSet<char>();
-
-        public int Count => ((ICollection<char>)matchOptions).Count;
-
-        public bool IsReadOnly => ((ICollection<char>)matchOptions).IsReadOnly;
-
-        public void Add(char item) => ((ICollection<char>)matchOptions).Add(item);
-
-        public void Clear() => ((ICollection<char>)matchOptions).Clear();
-
-        public bool Contains(char item) => ((ICollection<char>)matchOptions).Contains(item);
-
-        public void CopyTo(char[] array, int arrayIndex) 
-            => ((ICollection<char>)matchOptions).CopyTo(array, arrayIndex);
-
-        public IEnumerator<char> GetEnumerator() => ((ICollection<char>)matchOptions).GetEnumerator();
-
-        public bool Remove(char item) => ((ICollection<char>)matchOptions).Remove(item);
-
-        IEnumerator IEnumerable.GetEnumerator() => ((ICollection<char>)matchOptions).GetEnumerator();
-
-        public override bool Matches(char c) => Contains(c);
-
-        public override string ToString()
-            => $"[{new string(this.ToArray())}]";
-    }
-
     internal sealed class RangedCharacterGroup : CharacterGroupExpression
     {
         private string rangePairs = "";

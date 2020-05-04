@@ -206,10 +206,6 @@ namespace SimpleRegex
             {
                 Emit(RegexInterpreter.Instruction.JumpIfCharIsNot, single.Character);
             }
-            else if (group is ArbitraryCharacterGroup arb && arb.Count == 1)
-            {
-                Emit(RegexInterpreter.Instruction.JumpIfCharIsNot, arb.First());
-            }
             else
             {
                 Emit(RegexInterpreter.Instruction.JumpIfCharNotMatches, (ushort)charGroups.Count);
