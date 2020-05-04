@@ -54,6 +54,7 @@ namespace SimpleRegex
                 GroupExpression group => EmitTryMatchGroupExpression(group, out continuePartial, out backtrackFunc),
                 CharacterGroupExpression chr => EmitTryMatchCharacterGroup(chr, out continuePartial, out backtrackFunc),
                 QuantifierExpression quant => EmitTryMatchQuantifier(quant, out continuePartial, out backtrackFunc),
+                AnchorExpression anchor => EmitTryMatchAnchor(anchor, out continuePartial, out backtrackFunc),
                 _ => throw new NotImplementedException(),
             };
 
@@ -99,6 +100,15 @@ namespace SimpleRegex
             continuePartial = Enumerable.Empty<int>();
             backtrackFunc = null;
             return new[] { exitJump, boundsCheck };
+        }
+
+        private IEnumerable<int> EmitTryMatchAnchor(AnchorExpression anchor, out IEnumerable<int> continuePartial, out int? backtrackFunc)
+        {
+            var check = EmitPartialJump(anchor.IsStart ? RegexInterpreter.Instruction.JumpIfNotAtStart
+                                                       : RegexInterpreter.Instruction.JumpIfNotAtEnd);
+            continuePartial = Enumerable.Empty<int>();
+            backtrackFunc = null;
+            return new[] { check };
         }
 
         private IEnumerable<int> EmitTryMatchQuantifier(QuantifierExpression quant, out IEnumerable<int> continuePartial, out int? backtrackFunc)

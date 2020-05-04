@@ -31,6 +31,7 @@ namespace SimpleRegexTests
         [InlineData(@"a[b-\s]d")]
         [InlineData(@"a[b-\\]d")]
         [InlineData(@"a[\b-\\]d")]
+        [InlineData(@"^abc$")]
         public void RegexParse(string text)
         {
             _ = new Regex(text);
@@ -123,6 +124,10 @@ namespace SimpleRegexTests
         [InlineData(@".*", "aa", true, 0, 2)]
         [InlineData(@".*", "aba", true, 0, 3)]
         [InlineData(@".*", "abba", true, 0, 4)]
+        [InlineData(@"^abc$", "abc", true, 0, 3)]
+        [InlineData(@"^abc$", "aabc", false, 0, 0)]
+        [InlineData(@"^abc$", "abca", false, 0, 0)]
+        [InlineData(@"^abc$", "aabca", false, 0, 0)]
         public void TryMatch(string regex, string text, bool expect, int start, int len)
         {
             var obj = new Regex(regex);

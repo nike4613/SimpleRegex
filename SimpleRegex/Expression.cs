@@ -61,6 +61,19 @@ namespace SimpleRegex
 
     internal sealed class AlternationExpression : CompositeExpression { }
 
+    internal sealed class AnchorExpression : Expression
+    {
+        public bool IsStart { get; set; }
+        public bool IsEnd
+        {
+            get => !IsStart;
+            set => IsStart = !value;
+        }
+
+        public override string ToString()
+            => IsStart ? "^" : "$";
+    }
+
     internal abstract class CharacterGroupExpression : Expression
     {
         public abstract bool Matches(char c);

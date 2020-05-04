@@ -97,6 +97,14 @@ namespace SimpleRegex
                             CollapseLast();
                             exprStack.Push(new AnyCharacterGroup());
                             continue;
+                        case '^':
+                            CollapseLast();
+                            exprStack.Push(new AnchorExpression { IsStart = true });
+                            continue;
+                        case '$':
+                            CollapseLast();
+                            exprStack.Push(new AnchorExpression { IsStart = false });
+                            continue;
 
                         // TODO: implement alternation
                         default:
