@@ -131,20 +131,35 @@ namespace SimpleRegex
 
         private IEnumerable<int> EmitTryMatchZeroOrMoreQuantifier(QuantifierExpression quant, out IEnumerable<int> continuePartial, out int? backtrackFunc)
         {
-            throw new NotImplementedException();
-            // TODO: implement this with backtracking
+            var matchCounterLocal = LocalCount++;
+            Emit(RegexInterpreter.Instruction.PushLocal, matchCounterLocal);
+            var jumpPartial = EmitPartialJump(RegexInterpreter.Instruction.Jump);
 
-            /*
-            var matchTarget = instructions.Count;
-            var failed = EmitTryMatchExpression(quant.Target, out var cont);
-            RepairPartialJump(cont, instructions.Count);
+            var prevGreedyQuantifier = lastGreedyQuantifierBacktraceLoc;
+            backtrackFunc = lastGreedyQuantifierBacktraceLoc = Current;
+            EmitJumpTriple(RegexInterpreter.Instruction.DecLocalOrPopJump, matchCounterLocal, prevGreedyQuantifier);
+            Emit(RegexInterpreter.Instruction.PopPos);
+            var decToZeroPartial = EmitPartialJumpTriple(RegexInterpreter.Instruction.DecLocalOrPopJump, matchCounterLocal);
+            var callPartial = EmitPartialJump(RegexInterpreter.Instruction.Call);
+            Emit(RegexInterpreter.Instruction.IncLocal, matchCounterLocal);
+            var ifNoBacktrack = Current;
+            Emit(RegexInterpreter.Instruction.Return);
+            RepairPartialJump(decToZeroPartial, Current);
+            var continueJump = EmitPartialJump(RegexInterpreter.Instruction.Jump);
+
+            RepairPartialJump(jumpPartial, Current);
+            Emit(RegexInterpreter.Instruction.IncLocal, matchCounterLocal);
+            var matchTarget = Current;
+            Emit(RegexInterpreter.Instruction.PushPos);
+            var failed = EmitTryMatchExpression(quant.Target, out var cont, out var backtrack);
+            RepairPartialJump(callPartial, backtrack ?? ifNoBacktrack);
+            RepairPartialJump(cont, Current);
+            Emit(RegexInterpreter.Instruction.IncLocal, matchCounterLocal);
 
             EmitJump(RegexInterpreter.Instruction.Jump, matchTarget);
-            RepairPartialJump(failed, instructions.Count);
 
-            continuePartial = Enumerable.Empty<int>();
+            continuePartial = failed.Append(continueJump);
             return Enumerable.Empty<int>();
-            */
         }
 
         private IEnumerable<int> EmitTryMatchOptionalQuantifier(QuantifierExpression quant, out IEnumerable<int> continuePartial, out int? backtrackFunc)
