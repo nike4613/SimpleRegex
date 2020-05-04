@@ -12,11 +12,11 @@ namespace SimpleRegex
             Nop, Match, Reject, Jump, 
             JumpIfCharIs, JumpIfCharMatches,
             JumpIfCharIsNot, JumpIfCharNotMatches,
+            JumpIfNotAtStart, JumpIfNotAtEnd,
             Advance, Backtrack,
             JumpIfOutOfBounds,
             PushPos, PopPos,
             Call, Return,
-
             PushLocal, IncLocal, PopLocal, DecLocalOrPopJump,
             JumpIfLocalZero,
         }
@@ -140,6 +140,20 @@ namespace SimpleRegex
                                 iptr += target;
                             continue;
                         }
+                    case Instruction.JumpIfNotAtStart:
+                        {
+                            var target = (short)insns[iptr++];
+                            if (charPos != 0)
+                                iptr += target;
+                            continue;
+                        }
+                    case Instruction.JumpIfNotAtEnd:
+                        {
+                            var target = (short)insns[iptr++];
+                            if (charPos < text.Length)
+                                iptr += target;
+                            continue;
+                        }
 
                     case Instruction.PushLocal:
                         {
@@ -168,7 +182,7 @@ namespace SimpleRegex
                             var target = (short)insns[iptr++];
 
                             var stack = locals[index];
-                            if (stack == null || stack.Count < 1) 
+                            if (stack == null || stack.Count < 1)
                                 iptr += target;
                             else
                             {
@@ -227,6 +241,8 @@ namespace SimpleRegex
                 Instruction.Return => nameof(Instruction.Return),
                 Instruction.Jump => DisassembleJumpInsn(nameof(Instruction.Jump) + "\t", insns, ref pos),
                 Instruction.Call => DisassembleJumpInsn(nameof(Instruction.Call) + "\t", insns, ref pos),
+                Instruction.JumpIfNotAtStart => DisassembleJumpInsn(nameof(Instruction.JumpIfNotAtStart), insns, ref pos),
+                Instruction.JumpIfNotAtEnd => DisassembleJumpInsn(nameof(Instruction.JumpIfNotAtEnd), insns, ref pos),
                 Instruction.JumpIfOutOfBounds => DisassembleJumpInsn(nameof(Instruction.JumpIfOutOfBounds), insns, ref pos),
                 Instruction.JumpIfCharIs => DisassembleJumpIfCharIs(nameof(Instruction.JumpIfCharIs), insns, ref pos),
                 Instruction.JumpIfCharIsNot => DisassembleJumpIfCharIs(nameof(Instruction.JumpIfCharIsNot), insns, ref pos),
