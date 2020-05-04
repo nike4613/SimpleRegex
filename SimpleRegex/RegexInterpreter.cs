@@ -168,7 +168,7 @@ namespace SimpleRegex
                             var target = (short)insns[iptr++];
 
                             var stack = locals[index];
-                            if (stack.Count < 1) 
+                            if (stack == null || stack.Count < 1) 
                                 iptr += target;
                             else
                             {

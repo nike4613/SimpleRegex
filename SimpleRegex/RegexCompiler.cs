@@ -115,18 +115,24 @@ namespace SimpleRegex
 
         private IEnumerable<int> EmitTryMatchOneOrMoreQuantifier(QuantifierExpression quant, out IEnumerable<int> continuePartial, out int? backtrackFunc)
         {
-            throw new NotImplementedException();
-            // TODO: implement this with backtracking
+            var jumpPartial = EmitPartialJump(RegexInterpreter.Instruction.Jump);
 
-            /*var firstFail = EmitTryMatchExpression(quant.Target, out var cont);
+            backtrackFunc = Current;
+            var firstCallPartial = EmitPartialJump(RegexInterpreter.Instruction.Call);
+            var restCallPartial = EmitPartialJump(RegexInterpreter.Instruction.Call);
+            var ifNoBacktrace = Current;
+            Emit(RegexInterpreter.Instruction.Return);
+
+            RepairPartialJump(jumpPartial, Current);
+            var firstFail = EmitTryMatchExpression(quant.Target, out var cont, out var backtraceFirst);
             RepairPartialJump(cont, Current);
+            RepairPartialJump(firstCallPartial, backtraceFirst ?? ifNoBacktrace);
 
-            var repeatFail = EmitTryMatchZeroOrMoreQuantifier(quant, out cont);
-            RepairPartialJump(repeatFail, Current);
-            RepairPartialJump(cont, Current);
+            var repeatFail = EmitTryMatchZeroOrMoreQuantifier(quant, out cont, out var backtraceRest);
+            RepairPartialJump(restCallPartial, backtraceRest ?? ifNoBacktrace);
 
-            continuePartial = Enumerable.Empty<int>();
-            return firstFail;*/
+            continuePartial = repeatFail.Concat(cont);
+            return firstFail;
         }
 
         private IEnumerable<int> EmitTryMatchZeroOrMoreQuantifier(QuantifierExpression quant, out IEnumerable<int> continuePartial, out int? backtrackFunc)
