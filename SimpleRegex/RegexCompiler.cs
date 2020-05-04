@@ -69,7 +69,6 @@ namespace SimpleRegex
             continuePartial = Enumerable.Empty<int>();
 
             var backtracks = new int?[group.Count];
-            // TODO: figure out how to handle backtracking
             for (int i = 0; i < group.Count; i++)
             {
                 var failure = EmitTryMatchExpression(group[i], out continuePartial, out backtracks[i]);
@@ -201,26 +200,15 @@ namespace SimpleRegex
         }
 
         #region Emit helpers
-        private void EmitJumpIfMatch(CharacterGroupExpression group, int target)
-        {
-            if (group.Count == 1)
-            {
-                var chr = group.First();
-                Emit(RegexInterpreter.Instruction.JumpIfCharIs, chr);
-            }
-            else
-            {
-                Emit(RegexInterpreter.Instruction.JumpIfCharMatches, (ushort)charGroups.Count);
-                charGroups.Add(group);
-            }
-            Emit((ushort)GetJumpArg(Current, target));
-        }
         private void EmitJumpIfNotMatch(CharacterGroupExpression group, int target)
         {
-            if (group.Count == 1)
+            if (group is SingleCharacterGroup single)
             {
-                var chr = group.First();
-                Emit(RegexInterpreter.Instruction.JumpIfCharIsNot, chr);
+                Emit(RegexInterpreter.Instruction.JumpIfCharIsNot, single.Character);
+            }
+            else if (group is ArbitraryCharacterGroup arb && arb.Count == 1)
+            {
+                Emit(RegexInterpreter.Instruction.JumpIfCharIsNot, arb.First());
             }
             else
             {
@@ -228,11 +216,6 @@ namespace SimpleRegex
                 charGroups.Add(group);
             }
             Emit((ushort)GetJumpArg(Current, target));
-        }
-        private int EmitPartialJumpIfMatch(CharacterGroupExpression group)
-        {
-            EmitJumpIfMatch(group, 0);
-            return Current - 1;
         }
         private int EmitPartialJumpIfNotMatch(CharacterGroupExpression group)
         {

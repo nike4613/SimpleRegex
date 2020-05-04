@@ -199,7 +199,7 @@ namespace SimpleRegex
 
         private static bool MatchesGroup(char c, CharacterGroupExpression group)
         {
-            return group.Contains(c);
+            return group.Matches(c);
         }
 
         public string Disassembly => Disassemble();

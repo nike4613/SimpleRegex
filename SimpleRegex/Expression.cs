@@ -61,7 +61,23 @@ namespace SimpleRegex
 
     internal sealed class AlternationExpression : CompositeExpression { }
 
-    internal sealed class CharacterGroupExpression : Expression, ICollection<char>
+    internal abstract class CharacterGroupExpression : Expression
+    {
+        public abstract bool Matches(char c);
+    }
+
+    internal sealed class SingleCharacterGroup : CharacterGroupExpression
+    { 
+        public char Character { get; }
+        public SingleCharacterGroup(char c) => Character = c;
+
+        public override bool Matches(char c)
+            => c == Character;
+
+        public override string ToString() => Character.ToString();
+    }
+
+    internal sealed class ArbitraryCharacterGroup : CharacterGroupExpression, ICollection<char>
     {
         private readonly HashSet<char> matchOptions = new HashSet<char>();
 
@@ -84,8 +100,41 @@ namespace SimpleRegex
 
         IEnumerator IEnumerable.GetEnumerator() => ((ICollection<char>)matchOptions).GetEnumerator();
 
+        public override bool Matches(char c) => Contains(c);
+
         public override string ToString()
             => $"[{new string(this.ToArray())}]";
+    }
+
+    internal sealed class RangedCharacterGroup : CharacterGroupExpression
+    {
+        private string rangePairs = "";
+        public bool Inverse { get; set; } = false;
+
+        public void Add(char c) => AddRange(c, c);
+        public void AddRange(char min, char max)
+            => rangePairs += new string(new[] { min, (char)(max+1) });
+
+        public override bool Matches(char c)
+            => Enumerable.Range(0, rangePairs.Length / 2).Select(i => i * 2)
+                         .Any(i => rangePairs[i] <= c && rangePairs[i + 1] > c) ^ Inverse;
+
+        public override string ToString()
+        {
+            var sb = new StringBuilder(rangePairs.Length + rangePairs.Length / 2 + 2);
+            sb.Append("[");
+            for (int i = 0; i < rangePairs.Length; i += 2)
+            {
+                var min = rangePairs[i];
+                var max = (char)(rangePairs[i + 1] - 1); 
+                sb.Append(min);
+                if (min != max) 
+                    sb.Append("-")
+                      .Append(max);
+            }
+            sb.Append("]");
+            return sb.ToString();
+        }
     }
 
     internal class QuantifierExpression : Expression

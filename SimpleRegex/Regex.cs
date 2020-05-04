@@ -15,7 +15,7 @@ namespace SimpleRegex
             exprStack.Push(new GroupExpression { IsOpen = true });
 
             int i = 0;
-            char Char() => text[i];
+            char Char(int offset = 0) => text.Length > i + offset ? text[i + offset] : '\0';
             bool Advance() => ++i < text.Length;
 
             void CollapseLast()
@@ -55,41 +55,54 @@ namespace SimpleRegex
                             exprStack.Push(new GroupExpression { IsOpen = true });
                             continue;
                         case ')':
-                            CollapseLast(); // one for the end of the group
-                            if (!(exprStack.Peek() is GroupExpression group) || !group.IsOpen || exprStack.Count == 1)
-                                throw Invalid();
-                            group.IsOpen = false;
-                            continue;
+                            {
+                                CollapseLast(); // one for the end of the group
+                                if (!(exprStack.Peek() is GroupExpression group) || !group.IsOpen || exprStack.Count == 1)
+                                    throw Invalid();
+                                group.IsOpen = false;
+                                continue;
+                            }
                         case '[':
-                            CollapseLast();
-                            charGroup = true;
-                            exprStack.Push(new CharacterGroupExpression());
-                            continue;
+                            {
+                                CollapseLast();
+                                charGroup = true;
+                                var group = new RangedCharacterGroup();
+                                exprStack.Push(group);
+                                if (Char(1) == '^')
+                                {
+                                    group.Inverse = true;
+                                    Advance();
+                                }
+                                continue;
+                            }
                         case ']': // this codepath is always invalid
                             throw Invalid();
                         case '*':
                         case '+':
                         case '?':
-                            if (exprStack.Count == 1) throw Invalid();
-                            var target = exprStack.Pop();
-                            if (target is GroupExpression g && g.IsOpen) throw Invalid();
-                            exprStack.Push(new QuantifierExpression(target, Char() switch {
-                                '*' => QuantifierExpression.QuantifierType.ZeroOrMore,
-                                '+' => QuantifierExpression.QuantifierType.OneOrMore,
-                                '?' => QuantifierExpression.QuantifierType.Optional,
-                                _ => throw new InvalidOperationException()
-                            }));
-                            continue;
+                            {
+                                if (exprStack.Count == 1) throw Invalid();
+                                var target = exprStack.Pop();
+                                if (target is GroupExpression g && g.IsOpen) throw Invalid();
+                                exprStack.Push(new QuantifierExpression(target, Char() switch
+                                {
+                                    '*' => QuantifierExpression.QuantifierType.ZeroOrMore,
+                                    '+' => QuantifierExpression.QuantifierType.OneOrMore,
+                                    '?' => QuantifierExpression.QuantifierType.Optional,
+                                    _ => throw new InvalidOperationException()
+                                }));
+                                continue;
+                            }
                         // TODO: implement alternation
                         default:
                             CollapseLast();
-                            exprStack.Push(new CharacterGroupExpression { Char() });
+                            exprStack.Push(new SingleCharacterGroup(Char()));
                             continue;
                     }
                 }
                 else
                 {
-                    if (!(exprStack.Peek() is CharacterGroupExpression group)) 
+                    if (!(exprStack.Peek() is RangedCharacterGroup group)) 
                         throw new InvalidOperationException();
 
                     var c = Char();
@@ -106,8 +119,40 @@ namespace SimpleRegex
                     if (c == '[' && !escape) // this codepath is always invalid
                         throw Invalid();
 
-                    // TODO: support char ranges
+                    if (Char(1) == '-' && !escape)
+                    {
+                        Advance();
+                        escape = false;
+                        char max = '\0';
+                        while (Advance())
+                        {
+                            var c2 = Char();
+                            if (c2 == '\\' && !escape)
+                            {
+                                escape = true;
+                                continue;
+                            }
+                            if (escape && c2 != '\\' && c2 != '-')
+                            {
+                                escape = false;
+                                group.Add(c);
+                                group.Add('-');
+                                c = c2;
+                                goto handleDefault;
+                            }
+                            max = c2;
+                            escape = false;
+                            break;
+                        }
+
+                        group.AddRange(c, max);
+                        continue;
+                    }
+
+                handleDefault:
+                    // TODO: handle char groups when escaped here
                     group.Add(c);
+
                     escape = false;
                 }
             }
