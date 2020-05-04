@@ -66,6 +66,13 @@ namespace SimpleRegex
         public abstract bool Matches(char c);
     }
 
+    internal sealed class AnyCharacterGroup : CharacterGroupExpression
+    {
+        public override bool Matches(char c) => true;
+
+        public override string ToString() => ".";
+    }
+
     internal sealed class SingleCharacterGroup : CharacterGroupExpression
     { 
         public char Character { get; }

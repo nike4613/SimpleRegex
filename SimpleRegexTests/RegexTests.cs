@@ -21,6 +21,8 @@ namespace SimpleRegexTests
         [InlineData(@"a+b")]
         [InlineData(@"a*b")]
         [InlineData(@"a?b")]
+        [InlineData(@".*")]
+        [InlineData(@".+")]
         [InlineData(@"(ab)+b")]
         [InlineData(@"(ab)*b")]
         [InlineData(@"(ab)?b")]
@@ -115,6 +117,12 @@ namespace SimpleRegexTests
         [InlineData(@"a?a", "", false, 0, 0)]
         [InlineData(@"a?a", "a", true, 0, 1)]
         [InlineData(@"a?a", "aa", true, 0, 2)]
+        [InlineData(@".*", "", true, 0, 0)]
+        [InlineData(@".*", "a", true, 0, 1)]
+        [InlineData(@".*", "b", true, 0, 1)]
+        [InlineData(@".*", "aa", true, 0, 2)]
+        [InlineData(@".*", "aba", true, 0, 3)]
+        [InlineData(@".*", "abba", true, 0, 4)]
         public void TryMatch(string regex, string text, bool expect, int start, int len)
         {
             var obj = new Regex(regex);

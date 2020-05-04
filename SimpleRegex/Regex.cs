@@ -93,6 +93,11 @@ namespace SimpleRegex
                                 }));
                                 continue;
                             }
+                        case '.':
+                            CollapseLast();
+                            exprStack.Push(new AnyCharacterGroup());
+                            continue;
+
                         // TODO: implement alternation
                         default:
                             CollapseLast();
