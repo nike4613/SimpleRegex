@@ -194,6 +194,12 @@ namespace SimpleRegex
                 'D' => new RangedCharacterGroup('0', '9') { Inverse = true },
                 'w' => WordGroup(false),
                 'W' => WordGroup(true),
+                'n' => new SingleCharacterGroup('\n'),
+                'r' => new SingleCharacterGroup('\r'),
+                't' => new SingleCharacterGroup('\t'),
+                '0' => new SingleCharacterGroup('\0'),
+                'b' => new SingleCharacterGroup('\b'),
+                'f' => new SingleCharacterGroup('\f'),
                 _ => new SingleCharacterGroup(c)
             };
 

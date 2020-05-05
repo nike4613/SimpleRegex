@@ -140,6 +140,18 @@ namespace SimpleRegexTests
         [InlineData(@"^\w*$", "hello there bby3", false, 0, 0)]
         [InlineData(@"^\W*$", "-----", true, 0, 5)]
         [InlineData(@"^\W*$", "--a--", false, 0, 0)]
+        [InlineData(@"^\n$", "\n", true, 0, 1)]
+        [InlineData(@"^\n$", "\n ", false, 0, 0)]
+        [InlineData(@"^\r$", "\r", true, 0, 1)]
+        [InlineData(@"^\r$", "\r ", false, 0, 0)]
+        [InlineData(@"^\t$", "\t", true, 0, 1)]
+        [InlineData(@"^\t$", "\t ", false, 0, 0)]
+        [InlineData(@"^\0$", "\0", true, 0, 1)]
+        [InlineData(@"^\0$", "\0 ", false, 0, 0)]
+        [InlineData(@"^\b$", "\b", true, 0, 1)]
+        [InlineData(@"^\b$", "\b ", false, 0, 0)]
+        [InlineData(@"^\f$", "\f", true, 0, 1)]
+        [InlineData(@"^\f$", "\f ", false, 0, 0)]
         public void TryMatch(string regex, string text, bool expect, int start, int len)
         {
             var obj = new Regex(regex);
