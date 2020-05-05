@@ -19,6 +19,7 @@ namespace SimpleRegex
             Call, Return,
             PushLocal, IncLocal, PopLocal, DecLocalOrPopJump,
             JumpIfLocalZero,
+            Switch,
         }
 
         private readonly IReadOnlyList<ushort> instructions;
@@ -202,6 +203,20 @@ namespace SimpleRegex
                                 iptr += target;
                             continue;
                         }
+                    case Instruction.Switch:
+                        {
+                            var index = insns[iptr++];
+                            var count = insns[iptr++];
+                            var basePtr = iptr;
+                            iptr += count;
+
+                            var stack = locals[index];
+                            var value = stack.Peek();
+                            if (basePtr + value < iptr)
+                                iptr += (short)insns[basePtr + value];
+
+                            continue;
+                        }
 
                     default:
                         throw new InvalidOperationException("Unknown opcode");
@@ -253,9 +268,27 @@ namespace SimpleRegex
                 Instruction.PopLocal => DisassembleLocalInsn(nameof(Instruction.PopLocal) + "\t", insns, ref pos),
                 Instruction.DecLocalOrPopJump => DisassembleLocalJump(nameof(Instruction.DecLocalOrPopJump), insns, ref pos),
                 Instruction.JumpIfLocalZero => DisassembleLocalJump(nameof(Instruction.JumpIfLocalZero), insns, ref pos),
+                Instruction.Switch => DisassembleSwitchInsn(nameof(Instruction.Switch), insns, ref pos),
                 _ => "<unknown opcode>",
             };
 
+        private static string DisassembleSwitchInsn(string name, ushort[] insns, ref int pos)
+        {
+            if (pos >= insns.Length) return Partial(name);
+            var local = insns[pos++];
+            if (pos >= insns.Length) return Partial(name, local.ToString("X4"));
+            var count = insns[pos++];
+            var switchBase = pos;
+            var switchEnd = switchBase + count;
+            var targets = new List<string>(count);
+            for (int i = 0; i < count; i++)
+            {
+                if (pos >= insns.Length) return Partial(name, targets);
+                var target = (short)insns[pos++];
+                targets.Add(JumpTarget(target, switchEnd));
+            }
+            return $"{name} {local:X4}\t" + string.Join(", ", targets);
+        }
         private string DisassembleLocalInsn(string name, ushort[] insns, ref int pos)
         {
             if (pos >= insns.Length) return Partial(name);
@@ -298,7 +331,9 @@ namespace SimpleRegex
 
         private static string JumpTarget(int target, int pos)
             => $"{target:+0;-0;\0} [{pos + target:X4}]";
-        private static string Partial(params string[] parts)
-            => $"<partial {string.Join(" ", parts)}>";
+        private static string Partial(string name, params string[] parts)
+            => Partial(name, parts.AsEnumerable());
+        private static string Partial(string name, IEnumerable<string> parts)
+            => $"<partial {name} {string.Join(" ", parts)}>";
     }
 }

@@ -55,6 +55,7 @@ namespace SimpleRegex
                 CharacterGroupExpression chr => EmitTryMatchCharacterGroup(chr, out continuePartial, out backtrackFunc),
                 QuantifierExpression quant => EmitTryMatchQuantifier(quant, out continuePartial, out backtrackFunc),
                 AnchorExpression anchor => EmitTryMatchAnchor(anchor, out continuePartial, out backtrackFunc),
+                AlternationExpression alt => EmitTryMatchAlternation(alt, out continuePartial, out backtrackFunc),
                 _ => throw new NotImplementedException(),
             };
 
@@ -122,7 +123,13 @@ namespace SimpleRegex
             };
         }
 
+        private IEnumerable<int> EmitTryMatchAlternation(AlternationExpression alt, out IEnumerable<int> continuePartial, out int? backtrackFunc)
+        {
+            throw new NotImplementedException();
+        }
+
         // TODO: handle lazy quantifiers
+        // TODO: correctly pop all of a quantifier's positions when backtracing through it
 
         private IEnumerable<int> EmitTryMatchOneOrMoreQuantifier(QuantifierExpression quant, out IEnumerable<int> continuePartial, out int? backtrackFunc)
         {
@@ -153,7 +160,7 @@ namespace SimpleRegex
             var jumpPartial = EmitPartialJump(RegexInterpreter.Instruction.Jump);
 
             var prevGreedyQuantifier = lastGreedyQuantifierBacktraceLoc;
-            backtrackFunc = lastGreedyQuantifierBacktraceLoc = Current;
+            backtrackFunc = lastGreedyQuantifierBacktraceLoc = Current; // FIXME: this shouldn't set backtrackFunc, because that should fully backtrace, not just back up one iteration
             EmitJumpTriple(RegexInterpreter.Instruction.DecLocalOrPopJump, matchCounterLocal, prevGreedyQuantifier);
             Emit(RegexInterpreter.Instruction.PopPos);
             var decToZeroPartial = EmitPartialJumpTriple(RegexInterpreter.Instruction.DecLocalOrPopJump, matchCounterLocal);
@@ -186,7 +193,7 @@ namespace SimpleRegex
             var jumpPartial = EmitPartialJump(RegexInterpreter.Instruction.Jump);
 
             var prevGreedyQuantifier = lastGreedyQuantifierBacktraceLoc;
-            backtrackFunc = lastGreedyQuantifierBacktraceLoc = Current;
+            backtrackFunc = lastGreedyQuantifierBacktraceLoc = Current; // FIXME: this shouldn't set backtrackFunc, because that should fully backtrace, not just back up one iteration
             Emit(RegexInterpreter.Instruction.PopPos);
             EmitJumpTriple(RegexInterpreter.Instruction.DecLocalOrPopJump, matchCounterLocal, prevGreedyQuantifier);
             var decToZeroPartial = EmitPartialJumpTriple(RegexInterpreter.Instruction.DecLocalOrPopJump, matchCounterLocal);
