@@ -122,6 +122,8 @@ namespace SimpleRegex
             };
         }
 
+        // TODO: handle lazy quantifiers
+
         private IEnumerable<int> EmitTryMatchOneOrMoreQuantifier(QuantifierExpression quant, out IEnumerable<int> continuePartial, out int? backtrackFunc)
         {
             var jumpPartial = EmitPartialJump(RegexInterpreter.Instruction.Jump);

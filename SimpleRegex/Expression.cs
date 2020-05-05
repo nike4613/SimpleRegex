@@ -170,6 +170,7 @@ namespace SimpleRegex
             ZeroOrMore, OneOrMore, Optional
         }
         public QuantifierType Type { get; }
+        public bool IsLazy { get; set; } = false;
 
         public QuantifierExpression(Expression target, QuantifierType type)
         {

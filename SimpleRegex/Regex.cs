@@ -87,13 +87,18 @@ namespace SimpleRegex
                                 if (exprStack.Count == 1) throw Invalid();
                                 var target = exprStack.Pop();
                                 if (target is GroupExpression g && g.IsOpen) throw Invalid();
+                                var lazy = Char(1) == '?';
                                 exprStack.Push(new QuantifierExpression(target, Char() switch
                                 {
                                     '*' => QuantifierExpression.QuantifierType.ZeroOrMore,
                                     '+' => QuantifierExpression.QuantifierType.OneOrMore,
                                     '?' => QuantifierExpression.QuantifierType.Optional,
                                     _ => throw new InvalidOperationException()
-                                }));
+                                })
+                                {
+                                    IsLazy = lazy
+                                });
+                                if (lazy) Advance();
                                 continue;
                             }
                         case '.':
@@ -165,7 +170,6 @@ namespace SimpleRegex
                     }
 
                 handleDefault:
-                    // TODO: handle char groups when escaped here
                     if (escape)
                         group.Add(GetCharGroupForEscaped(c));
                     else
