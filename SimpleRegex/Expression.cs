@@ -59,7 +59,11 @@ namespace SimpleRegex
         public bool IsOpen { get; set; } = false;
     }
 
-    internal sealed class AlternationExpression : CompositeExpression { }
+    internal sealed class AlternationExpression : CompositeExpression 
+    {
+        public override string ToString()
+            => $"({string.Join("|", this.Select(e => e.ToString()))})";
+    }
 
     internal sealed class AnchorExpression : Expression
     {

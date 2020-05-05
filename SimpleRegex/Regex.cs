@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace SimpleRegex
 {
@@ -63,6 +64,34 @@ namespace SimpleRegex
                                 if (!(exprStack.Peek() is GroupExpression group) || !group.IsOpen || exprStack.Count == 1)
                                     throw Invalid();
                                 group.IsOpen = false;
+                                if (exprStack.Skip(1).FirstOrDefault() is AlternationExpression alt)
+                                { // below the group is an alternation, so add the group
+                                    alt.Add(exprStack.Pop());
+                                }
+                                continue;
+                            }
+                        case '|':
+                            { // the alternation shit is whack
+                                CollapseLast();
+                                var top = exprStack.Pop();
+                                if (!(top is CompositeExpression))
+                                    throw new InvalidOperationException();
+                                if (top is GroupExpression group)
+                                { // close the group
+                                    group.IsOpen = false;
+                                }
+                                if (exprStack.Count > 0 && exprStack.Peek() is AlternationExpression alt)
+                                { // we already have an alternation beneath
+                                    alt.Add(top);
+                                }
+                                else
+                                { // we need to create a new alternation
+                                    exprStack.Push(new AlternationExpression { top });
+                                }
+
+                                // add another group on top for later alternations, etc
+                                exprStack.Push(new GroupExpression { IsOpen = true });
+
                                 continue;
                             }
                         case '[':
@@ -114,7 +143,6 @@ namespace SimpleRegex
                             exprStack.Push(new AnchorExpression { IsStart = false });
                             continue;
 
-                        // TODO: implement alternation
                         default:
                             CollapseLast();
                             exprStack.Push(new SingleCharacterGroup(Char()));
@@ -180,7 +208,17 @@ namespace SimpleRegex
             }
             while (Advance());
 
-            CollapseLast();
+            { // clean up the stack, which may have a group over an alternation
+                CollapseLast();
+                if (exprStack.Peek() is GroupExpression group)
+                {
+                    group.IsOpen = false;
+                }
+                if (exprStack.Skip(1).FirstOrDefault() is AlternationExpression alt)
+                { // TODO: refactor this out somehow?
+                    alt.Add(exprStack.Pop());
+                }
+            }
 
             if (exprStack.Count != 1 || charGroup) throw Invalid();
 
