@@ -46,7 +46,10 @@ namespace SimpleRegex
                     {
                         case var _ when escape:
                             escape = false;
-                            goto default;
+                            CollapseLast();
+                            exprStack.Push(GetCharGroupForEscaped(Char()));
+                            continue;
+
                         case '\\':
                             escape = true;
                             continue;
@@ -147,7 +150,6 @@ namespace SimpleRegex
                             }
                             if (escape && c2 != '\\' && c2 != '-')
                             {
-                                escape = false;
                                 group.Add(c);
                                 group.Add('-');
                                 c = c2;
@@ -164,7 +166,10 @@ namespace SimpleRegex
 
                 handleDefault:
                     // TODO: handle char groups when escaped here
-                    group.Add(c);
+                    if (escape)
+                        group.Add(GetCharGroupForEscaped(c));
+                    else
+                        group.Add(c);
 
                     escape = false;
                 }
@@ -180,6 +185,28 @@ namespace SimpleRegex
             interpreter = new RegexCompiler().Compile(expr).AsInterpreter();
         }
 
+        private static CharacterGroupExpression GetCharGroupForEscaped(char c)
+            => c switch
+            {
+                's' => new WhitespaceCharacterGroup { Inverse = false },
+                'S' => new WhitespaceCharacterGroup { Inverse = true },
+                'd' => new RangedCharacterGroup('0', '9') { Inverse = false },
+                'D' => new RangedCharacterGroup('0', '9') { Inverse = true },
+                'w' => WordGroup(false),
+                'W' => WordGroup(true),
+                _ => new SingleCharacterGroup(c)
+            };
+
+        private static RangedCharacterGroup WordGroup(bool inverse)
+        {
+            var group = new RangedCharacterGroup { Inverse = inverse };
+            group.AddRange('a', 'z');
+            group.AddRange('A', 'Z');
+            group.AddRange('0', '9');
+            group.Add('_');
+            return group;
+        }
+
         private readonly RegexInterpreter interpreter;
 
         public bool Matches(string text, int startAt = 0)
@@ -188,9 +215,9 @@ namespace SimpleRegex
         public Match? FindMatch(string text, int startAt = 0)
             => interpreter.MatchOn(text, startAt);
 
-        public IEnumerable<Match> FindMatches(string text, int startAt = 0)
+        public IEnumerable<Match?> FindMatches(string text, int startAt = 0)
         {
-            var list = new List<Match>();
+            var list = new List<Match?>();
             Match? match;
             while ((match = FindMatch(text, startAt)) != null)
             {

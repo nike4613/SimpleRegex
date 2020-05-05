@@ -97,18 +97,51 @@ namespace SimpleRegex
         public override string ToString() => Character.ToString();
     }
 
+    internal sealed class WhitespaceCharacterGroup : CharacterGroupExpression
+    {
+        public bool Inverse { get; set; } = false;
+        public override bool Matches(char c)
+            => char.IsWhiteSpace(c) ^ Inverse;
+
+        public override string ToString() => "\\" + (Inverse ? "S" : "s");
+    }
+
     internal sealed class RangedCharacterGroup : CharacterGroupExpression
     {
         private string rangePairs = "";
+        private readonly List<CharacterGroupExpression> moreGroups = new List<CharacterGroupExpression>();
+
+        public RangedCharacterGroup() { }
+        public RangedCharacterGroup(char min, char max) => AddRange(min, max);
+
         public bool Inverse { get; set; } = false;
 
         public void Add(char c) => AddRange(c, c);
+        public void Add(CharacterGroupExpression group)
+        {
+            if (group is RangedCharacterGroup range)
+            {
+                for (int i = 0; i < range.rangePairs.Length; i += 2)
+                {
+                    AddRange(range.rangePairs[i], (char)(range.rangePairs[i + 1] - 1));
+                }
+            }
+            else if (group is SingleCharacterGroup single)
+            {
+                Add(single.Character);
+            }
+            else
+            {
+                moreGroups.Add(group);
+            }
+        }
         public void AddRange(char min, char max)
             => rangePairs += new string(new[] { min, (char)(max+1) });
 
         public override bool Matches(char c)
             => Enumerable.Range(0, rangePairs.Length / 2).Select(i => i * 2)
-                         .Any(i => rangePairs[i] <= c && rangePairs[i + 1] > c) ^ Inverse;
+                         .Any(i => rangePairs[i] <= c && rangePairs[i + 1] > c) ^ Inverse
+            || moreGroups.Any(g => g.Matches(c));
 
         public override string ToString()
         {
