@@ -9,6 +9,7 @@ namespace SimpleRegex
     {
         private readonly List<ushort> instructions = new List<ushort>();
         private readonly List<CharacterGroupExpression> charGroups = new List<CharacterGroupExpression>();
+        private readonly List<string> commentStrings = new List<string>();
         private readonly RegexInterpreter interpreter;
 
         private ushort LocalCount
@@ -21,11 +22,15 @@ namespace SimpleRegex
 
         public RegexCompiler()
         {
-            interpreter = new RegexInterpreter(instructions, charGroups);
+            interpreter = new RegexInterpreter(instructions, charGroups, commentStrings);
         }
 
         public RegexCompiler Compile(Expression expr)
         {
+#if DEBUG
+            commentStrings.Add("}");
+#endif
+
             var startJump = EmitPartialJump(RegexInterpreter.Instruction.Jump);
             var rejectPos = Current;
             Emit(RegexInterpreter.Instruction.Reject);
@@ -49,7 +54,12 @@ namespace SimpleRegex
 
         // all EmitExpression variants return the partial jump on failure
         private IEnumerable<int> EmitTryMatchExpression(Expression expr, out IEnumerable<int> continuePartial, out int? backtrackFunc)
-            => expr switch
+        {
+#if DEBUG
+            Emit(RegexInterpreter.Instruction.Comment, (ushort)commentStrings.Count);
+            commentStrings.Add($"{{ // {expr}");
+#endif
+            var returnValue = expr switch
             {
                 GroupExpression group => EmitTryMatchGroupExpression(group, out continuePartial, out backtrackFunc),
                 CharacterGroupExpression chr => EmitTryMatchCharacterGroup(chr, out continuePartial, out backtrackFunc),
@@ -58,6 +68,11 @@ namespace SimpleRegex
                 AlternationExpression alt => EmitTryMatchAlternation(alt, out continuePartial, out backtrackFunc),
                 _ => throw new NotImplementedException(),
             };
+#if DEBUG
+            Emit(RegexInterpreter.Instruction.Comment, 0);
+#endif
+            return returnValue;
+        }
 
         private IEnumerable<int> EmitTryMatchGroupExpression(GroupExpression group, out IEnumerable<int> continuePartial, out int? backtrackFunc)
         {
@@ -190,6 +205,7 @@ namespace SimpleRegex
 
             var onBacktrace = Current;
             EmitSwitch(indexLocal, tailLastGreedyQuantifiers);
+            EmitJump(RegexInterpreter.Instruction.Jump, startLastGreedy);
             lastGreedyQuantifierBacktraceLoc = onBacktrace;
 
             return Enumerable.Empty<int>();

@@ -9,7 +9,8 @@ namespace SimpleRegex
     {
         public enum Instruction : ushort
         {
-            Nop, Match, Reject, Jump, 
+            Nop, Comment,
+            Match, Reject, Jump, 
             JumpIfCharIs, JumpIfCharMatches,
             JumpIfCharIsNot, JumpIfCharNotMatches,
             JumpIfNotAtStart, JumpIfNotAtEnd,
@@ -24,12 +25,14 @@ namespace SimpleRegex
 
         private readonly IReadOnlyList<ushort> instructions;
         private readonly IReadOnlyList<CharacterGroupExpression> characterGroups;
+        private readonly IReadOnlyList<string> commentStrings;
         internal int localCount;
 
-        public RegexInterpreter(IReadOnlyList<ushort> instructions, IReadOnlyList<CharacterGroupExpression> characterGroups)
+        public RegexInterpreter(IReadOnlyList<ushort> instructions, IReadOnlyList<CharacterGroupExpression> characterGroups, IReadOnlyList<string> commentStrings)
         {
             this.instructions = instructions;
             this.characterGroups = characterGroups;
+            this.commentStrings = commentStrings;
         }
 
         public Match? MatchOn(string text, int startAt)
@@ -55,6 +58,11 @@ namespace SimpleRegex
                 switch ((Instruction)insns[iptr++])
                 {
                     case Instruction.Nop: continue;
+                    case Instruction.Comment:
+                        {
+                            iptr++;
+                            continue;
+                        }
                     case Instruction.Match:
                         return Match.FromOffsets(positions.Last(), charPos);
                     case Instruction.Reject:
@@ -211,10 +219,12 @@ namespace SimpleRegex
                             iptr += count;
 
                             var stack = locals[index];
-                            var value = stack.Peek();
-                            if (basePtr + value < iptr)
-                                iptr += (short)insns[basePtr + value];
-
+                            if (stack != null && stack.Count > 0)
+                            {
+                                var value = stack.Peek();
+                                if (basePtr + value < iptr)
+                                    iptr += (short)insns[basePtr + value];
+                            }
                             continue;
                         }
 
@@ -247,6 +257,7 @@ namespace SimpleRegex
             => (Instruction)insns[pos++] switch // TODO: report this notification as a bug
             {
                 Instruction.Nop => nameof(Instruction.Nop),
+                Instruction.Comment => DisassembleComment(nameof(Instruction.Comment), insns, ref pos),
                 Instruction.Match => nameof(Instruction.Match),
                 Instruction.Reject => nameof(Instruction.Reject),
                 Instruction.Advance => nameof(Instruction.Advance),
@@ -272,6 +283,15 @@ namespace SimpleRegex
                 _ => "<unknown opcode>",
             };
 
+        private string DisassembleComment(string name, ushort[] insns, ref int pos)
+        {
+            if (pos >= insns.Length) return Partial(name);
+            var stringIdx = insns[pos++];
+            var stringValue = "<invalid string>";
+            if (stringIdx < commentStrings.Count)
+                stringValue = $"- {commentStrings[stringIdx]}";
+            return $"{name} {stringIdx:X4} {stringValue}";
+        }
         private static string DisassembleSwitchInsn(string name, ushort[] insns, ref int pos)
         {
             if (pos >= insns.Length) return Partial(name);
