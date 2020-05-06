@@ -63,9 +63,6 @@ namespace SimpleRegex
         {
             //Emit(RegexInterpreter.Instruction.PushPos);
             var openJump = EmitPartialJump(RegexInterpreter.Instruction.Jump);
-            var onFail = Current;
-            //Emit(RegexInterpreter.Instruction.PopPos);
-            var exitJump = EmitPartialJump(RegexInterpreter.Instruction.Jump);
             RepairPartialJump(openJump, Current);
 
             continuePartial = Enumerable.Empty<int>();
@@ -73,8 +70,9 @@ namespace SimpleRegex
             var backtracks = new int?[group.Count];
             for (int i = 0; i < group.Count; i++)
             {
+                var lastBt = lastGreedyQuantifierBacktraceLoc;
                 var failure = EmitTryMatchExpression(group[i], out continuePartial, out backtracks[i]);
-                RepairPartialJump(failure, /*onFail*/ lastGreedyQuantifierBacktraceLoc);
+                RepairPartialJump(failure, /*onFail*/ lastBt);
                 RepairPartialJump(continuePartial, Current);
             }
 
@@ -90,7 +88,7 @@ namespace SimpleRegex
             Emit(RegexInterpreter.Instruction.Return);
 
             continuePartial = continuePartial.Append(finishedPartial);
-            return new[] { exitJump };
+            return Enumerable.Empty<int>();
         }
 
         private IEnumerable<int> EmitTryMatchCharacterGroup(CharacterGroupExpression group, out IEnumerable<int> continuePartial, out int? backtrackFunc)
@@ -126,10 +124,75 @@ namespace SimpleRegex
         private IEnumerable<int> EmitTryMatchAlternation(AlternationExpression alt, out IEnumerable<int> continuePartial, out int? backtrackFunc)
         {
             var indexLocal = LocalCount++;
+            Emit(RegexInterpreter.Instruction.PushLocal, indexLocal);
+            Emit(RegexInterpreter.Instruction.PushPos);
+            var jumpPartial = EmitPartialJump(RegexInterpreter.Instruction.Jump);
 
+            var startLastGreedy = lastGreedyQuantifierBacktraceLoc;
 
+            // emit BacktraceFunc
+            var backtraceFuncJumpTargets = new int[alt.Count];
+            var backtraceCallPartials = new int[alt.Count];
+            var backtraceReturnPartials = new int[alt.Count];
+            for (var i = 0; i < alt.Count; i++)
+            {
+                backtraceFuncJumpTargets[i] = Current;
+                backtraceCallPartials[i] = EmitPartialJump(RegexInterpreter.Instruction.Call);
+                backtraceReturnPartials[i] = EmitPartialJump(RegexInterpreter.Instruction.Jump);
+            }
+            backtrackFunc = Current;
+            EmitSwitch(indexLocal, backtraceFuncJumpTargets);
+            RepairPartialJump(backtraceReturnPartials, Current);
+            Emit(RegexInterpreter.Instruction.PopLocal, indexLocal);
+            var ifNoBacktrack = Current;
+            Emit(RegexInterpreter.Instruction.Return);
 
-            throw new NotImplementedException();
+            // emit OnBacktraceThrough (when match fails within alt)
+            var backtraceThroughJumpTargets = new int[alt.Count];
+            var backtraceThroughContinuePartials = new int[alt.Count];
+            backtraceThroughContinuePartials[0] = -1;
+            for (var i = 0; i < alt.Count; i++)
+            {
+                backtraceThroughJumpTargets[i] = Current;
+                if (i + 1 < alt.Count)
+                { // normal case
+                    Emit(RegexInterpreter.Instruction.PushPos);
+                    Emit(RegexInterpreter.Instruction.IncLocal, indexLocal);
+                    backtraceThroughContinuePartials[i + 1] = EmitPartialJump(RegexInterpreter.Instruction.Jump);
+                }
+                else
+                { // last element
+                    Emit(RegexInterpreter.Instruction.PopLocal, indexLocal);
+                    EmitJump(RegexInterpreter.Instruction.Jump, startLastGreedy);
+                }
+            }
+            var onBacktraceThrough = Current;
+            Emit(RegexInterpreter.Instruction.PopPos);
+            EmitSwitch(indexLocal, backtraceThroughJumpTargets);
+
+            // emit main execution
+            continuePartial = Enumerable.Empty<int>();
+            RepairPartialJump(jumpPartial, Current);
+            var tailLastGreedyQuantifiers = new int[alt.Count];
+            for (var i = 0; i < alt.Count; i++)
+            {
+                lastGreedyQuantifierBacktraceLoc = onBacktraceThrough;
+                RepairPartialJump(backtraceThroughContinuePartials[i], Current);
+                var failure = EmitTryMatchExpression(alt[i], out var cont, out var backtrack);
+                var trailingJump = EmitPartialJump(RegexInterpreter.Instruction.Jump);
+                RepairPartialJump(backtraceCallPartials[i], backtrack ?? ifNoBacktrack);
+                RepairPartialJump(failure, onBacktraceThrough);
+
+                tailLastGreedyQuantifiers[i] = lastGreedyQuantifierBacktraceLoc;
+
+                continuePartial = continuePartial.Concat(cont).Append(trailingJump);
+            }
+
+            var onBacktrace = Current;
+            EmitSwitch(indexLocal, tailLastGreedyQuantifiers);
+            lastGreedyQuantifierBacktraceLoc = onBacktrace;
+
+            return Enumerable.Empty<int>();
         }
 
         // TODO: handle lazy quantifiers
@@ -237,6 +300,14 @@ namespace SimpleRegex
         }
 
         #region Emit helpers
+        private void EmitSwitch(ushort localIndex, int[] targets)
+        {
+            Emit(RegexInterpreter.Instruction.Switch, localIndex);
+            Emit((ushort)targets.Length);
+            var switchEnd = Current + targets.Length;
+            foreach (var target in targets)
+                Emit((ushort)GetJumpArg(switchEnd - 1, target));
+        }
         private void EmitJumpIfNotMatch(CharacterGroupExpression group, int target)
         {
             if (group is SingleCharacterGroup single)

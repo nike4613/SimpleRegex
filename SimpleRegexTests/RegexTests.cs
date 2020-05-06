@@ -154,6 +154,11 @@ namespace SimpleRegexTests
         [InlineData(@"^\b$", "\b ", false, 0, 0)]
         [InlineData(@"^\f$", "\f", true, 0, 1)]
         [InlineData(@"^\f$", "\f ", false, 0, 0)]
+        [InlineData(@"a|b|c", "a", true, 0, 1)]
+        [InlineData(@"a|b|c", "b", true, 0, 1)]
+        [InlineData(@"a|b|c", "c", true, 0, 1)]
+        [InlineData(@"a|b|c", "d", false, 0, 0)]
+
         public void TryMatch(string regex, string text, bool expect, int start, int len)
         {
             var obj = new Regex(regex);
