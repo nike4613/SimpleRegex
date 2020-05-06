@@ -125,11 +125,14 @@ namespace SimpleRegex
 
         private IEnumerable<int> EmitTryMatchAlternation(AlternationExpression alt, out IEnumerable<int> continuePartial, out int? backtrackFunc)
         {
+            var indexLocal = LocalCount++;
+
+
+
             throw new NotImplementedException();
         }
 
         // TODO: handle lazy quantifiers
-        // TODO: correctly pop all of a quantifier's positions when backtracing through it
 
         private IEnumerable<int> EmitTryMatchOneOrMoreQuantifier(QuantifierExpression quant, out IEnumerable<int> continuePartial, out int? backtrackFunc)
         {
@@ -160,16 +163,24 @@ namespace SimpleRegex
             var jumpPartial = EmitPartialJump(RegexInterpreter.Instruction.Jump);
 
             var prevGreedyQuantifier = lastGreedyQuantifierBacktraceLoc;
-            backtrackFunc = lastGreedyQuantifierBacktraceLoc = Current; // FIXME: this shouldn't set backtrackFunc, because that should fully backtrace, not just back up one iteration
+            lastGreedyQuantifierBacktraceLoc = Current;
             EmitJumpTriple(RegexInterpreter.Instruction.DecLocalOrPopJump, matchCounterLocal, prevGreedyQuantifier);
             Emit(RegexInterpreter.Instruction.PopPos);
             var decToZeroPartial = EmitPartialJumpTriple(RegexInterpreter.Instruction.DecLocalOrPopJump, matchCounterLocal);
             var callPartial = EmitPartialJump(RegexInterpreter.Instruction.Call);
             Emit(RegexInterpreter.Instruction.IncLocal, matchCounterLocal);
-            var ifNoBacktrack = Current;
-            Emit(RegexInterpreter.Instruction.Return);
             RepairPartialJump(decToZeroPartial, Current);
             var continueJump = EmitPartialJump(RegexInterpreter.Instruction.Jump);
+
+            backtrackFunc = Current;
+            var undoStart = EmitPartialJumpTriple(RegexInterpreter.Instruction.DecLocalOrPopJump, matchCounterLocal);
+            var loopTo = Current;
+            Emit(RegexInterpreter.Instruction.PopPos);
+            var undoLoop = EmitPartialJumpTriple(RegexInterpreter.Instruction.DecLocalOrPopJump, matchCounterLocal);
+            EmitJump(RegexInterpreter.Instruction.Jump, loopTo);
+            RepairPartialJump(new[] { undoStart, undoLoop }, Current);
+            var ifNoBacktrack = Current;
+            Emit(RegexInterpreter.Instruction.Return);
 
             RepairPartialJump(jumpPartial, Current);
             Emit(RegexInterpreter.Instruction.IncLocal, matchCounterLocal);
@@ -193,17 +204,24 @@ namespace SimpleRegex
             var jumpPartial = EmitPartialJump(RegexInterpreter.Instruction.Jump);
 
             var prevGreedyQuantifier = lastGreedyQuantifierBacktraceLoc;
-            backtrackFunc = lastGreedyQuantifierBacktraceLoc = Current; // FIXME: this shouldn't set backtrackFunc, because that should fully backtrace, not just back up one iteration
+            lastGreedyQuantifierBacktraceLoc = Current;
             Emit(RegexInterpreter.Instruction.PopPos);
             EmitJumpTriple(RegexInterpreter.Instruction.DecLocalOrPopJump, matchCounterLocal, prevGreedyQuantifier);
             var decToZeroPartial = EmitPartialJumpTriple(RegexInterpreter.Instruction.DecLocalOrPopJump, matchCounterLocal);
             var callPartial = EmitPartialJump(RegexInterpreter.Instruction.Call);
             Emit(RegexInterpreter.Instruction.IncLocal, matchCounterLocal);
-            var ifNoBacktrack = Current;
-            Emit(RegexInterpreter.Instruction.Return);
             RepairPartialJump(decToZeroPartial, Current);
             Emit(RegexInterpreter.Instruction.PushPos);
             var continueJump = EmitPartialJump(RegexInterpreter.Instruction.Jump);
+
+            backtrackFunc = Current;
+            var undoStart = EmitPartialJumpTriple(RegexInterpreter.Instruction.DecLocalOrPopJump, matchCounterLocal);
+            Emit(RegexInterpreter.Instruction.PopPos);
+            var undoLoop = EmitPartialJumpTriple(RegexInterpreter.Instruction.DecLocalOrPopJump, matchCounterLocal);
+            var undoLoop2 = EmitPartialJumpTriple(RegexInterpreter.Instruction.DecLocalOrPopJump, matchCounterLocal);
+            RepairPartialJump(new[] { undoStart, undoLoop, undoLoop2 }, Current);
+            var ifNoBacktrack = Current;
+            Emit(RegexInterpreter.Instruction.Return);
 
             RepairPartialJump(jumpPartial, Current);
             Emit(RegexInterpreter.Instruction.PushPos);
