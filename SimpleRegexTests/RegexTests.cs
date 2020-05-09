@@ -212,6 +212,13 @@ namespace SimpleRegexTests
         [InlineData(@"^((a|b)c?)?$", "bcc", false, 0, 0)]
         [InlineData(@"^((a|b)c?)?$", "aac", false, 0, 0)]
         [InlineData(@"^((a|b)c?)?$", "bbc", false, 0, 0)]
+        [InlineData(@"^(|a|b)bc$", "", false, 0, 0)]
+        [InlineData(@"^(|a|b)bc$", "a", false, 0, 0)]
+        [InlineData(@"^(|a|b)bc$", "b", false, 0, 0)]
+        [InlineData(@"^(|a|b)bc$", "c", false, 0, 0)]
+        [InlineData(@"^(|a|b)bc$", "bc", true, 0, 2)]
+        [InlineData(@"^(|a|b)bc$", "abc", true, 0, 3)]
+        [InlineData(@"^(|a|b)bc$", "bbc", true, 0, 3)]
         public void TryMatch(string regex, string text, bool expect, int start, int len)
         {
             var obj = new Regex(regex);

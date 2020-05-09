@@ -76,9 +76,14 @@ namespace SimpleRegex
 
         private IEnumerable<int> EmitTryMatchGroupExpression(GroupExpression group, out IEnumerable<int> continuePartial, out int? backtrackFunc)
         {
-            //Emit(RegexInterpreter.Instruction.PushPos);
-            var openJump = EmitPartialJump(RegexInterpreter.Instruction.Jump);
-            RepairPartialJump(openJump, Current);
+            if (group.Count == 1)
+                return EmitTryMatchExpression(group.First(), out continuePartial, out backtrackFunc);
+            if (group.Count == 0)
+            {
+                continuePartial = Enumerable.Empty<int>();
+                backtrackFunc = null;
+                return Enumerable.Empty<int>();
+            }
 
             continuePartial = Enumerable.Empty<int>();
 
@@ -234,8 +239,6 @@ namespace SimpleRegex
             continuePartial = repeatFail.Concat(cont);
             return firstFail;
         }
-
-        // TODO: ensure the quantifiers don't try and call the backtrackers of their children before they've matched
         
         private IEnumerable<int> EmitTryMatchZeroOrMoreQuantifier(QuantifierExpression quant, out IEnumerable<int> continuePartial, out int? backtrackFunc)
         {
