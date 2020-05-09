@@ -163,7 +163,7 @@ namespace SimpleRegexTests
         [InlineData(@"^((a|b)(c|d))?", "ad", true, 0, 2)]
         [InlineData(@"^((a|b)(c|d))?", "bc", true, 0, 2)]
         [InlineData(@"^((a|b)(c|d))?", "bd", true, 0, 2)]
-        [InlineData(@"^((a|b)(c|d))?", "dc", true, 0, 2)]
+        [InlineData(@"^((a|b)(c|d))?", "dc", true, 0, 0)]
         [InlineData(@"^((a|b)(c|d))?$", "", true, 0, 0)]
         [InlineData(@"^((a|b)(c|d))?$", "ac", true, 0, 2)]
         [InlineData(@"^((a|b)(c|d))?$", "ad", true, 0, 2)]
