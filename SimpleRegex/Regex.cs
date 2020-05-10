@@ -281,27 +281,27 @@ namespace SimpleRegex
         public bool Matches(string text, int startAt = 0)
             => FindMatch(text, startAt) != null;
 
-        public Region? FindMatch(string text, int startAt = 0)
+        public Match? FindMatch(string text, int startAt = 0)
             => interpreter.MatchOn(text, startAt);
 
-        public IEnumerable<Region?> FindMatches(string text, int startAt = 0)
+        public IEnumerable<Match?> FindMatches(string text, int startAt = 0)
         {
-            var list = new List<Region?>();
-            Region? match;
+            var list = new List<Match?>();
+            Match? match;
             while ((match = FindMatch(text, startAt)) != null)
             {
-                startAt = match.End;
+                startAt = match.FullMatch.End;
                 list.Add(match);
             }
             return list;
         }
     }
 
-    public class MatchResult
+    public class Match
     {
         public Region FullMatch { get; }
         public Region[] Groups { get; }
-        public MatchResult(Region fullMatch, Region[] groups)
+        public Match(Region fullMatch, Region[] groups)
         {
             FullMatch = fullMatch;
             Groups = groups;

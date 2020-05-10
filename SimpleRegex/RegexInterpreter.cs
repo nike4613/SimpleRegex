@@ -36,7 +36,7 @@ namespace SimpleRegex
             this.commentStrings = commentStrings;
         }
 
-        public Region? MatchOn(string text, int startAt)
+        public Match? MatchOn(string text, int startAt)
         {
             if (text is null)
                 throw new ArgumentNullException("String is null", nameof(text));
@@ -65,7 +65,7 @@ namespace SimpleRegex
                             continue;
                         }
                     case Instruction.Match:
-                        return Region.FromOffsets(positions.Last(), charPos);
+                        return new Match(Region.FromOffsets(positions.Last(), charPos), groups);
                     case Instruction.Reject:
                         return null;
                     case Instruction.PushPos:

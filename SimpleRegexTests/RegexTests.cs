@@ -227,7 +227,7 @@ namespace SimpleRegexTests
         public void TryMatch(string regex, string text, bool expect, int start, int len)
         {
             var obj = new Regex(regex);
-            var match = obj.FindMatch(text);
+            var match = obj.FindMatch(text)?.FullMatch;
             Assert.Equal(expect, match != null);
             if (match != null)
             {

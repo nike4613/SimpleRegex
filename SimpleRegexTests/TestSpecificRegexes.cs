@@ -90,7 +90,7 @@ namespace SimpleRegexTests
         [InlineData("99999999999999999999999.999999999999999999.99999999999999999----RC-SNAPSHOT.12.09.1--------------------------------..12", false, 0, 0)]
         public void SemverRegex(string text, bool matches, int start, int len)
         {
-            var match = regexes.Semver.FindMatch(text);
+            var match = regexes.Semver.FindMatch(text)?.FullMatch;
             Assert.Equal(matches, match != null);
             if (match != null)
             {
@@ -171,7 +171,7 @@ namespace SimpleRegexTests
         [InlineData("99999999999999999999999.999999999999999999.99999999999999999----RC-SNAPSHOT.12.09.1--------------------------------..12", false, 0, 0)]
         public void SemverCapturelessRegex(string text, bool matches, int start, int len)
         {
-            var match = regexes.SemverCaptureless.FindMatch(text);
+            var match = regexes.SemverCaptureless.FindMatch(text)?.FullMatch;
             Assert.Equal(matches, match != null);
             if (match != null)
             {
