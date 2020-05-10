@@ -17,6 +17,11 @@ namespace SimpleRegex
             get => (ushort)interpreter.localCount;
             set => interpreter.localCount = value;
         }
+        private ushort GroupCount
+        {
+            get => (ushort)interpreter.groupCount;
+            set => interpreter.groupCount = value;
+        }
         private int Current => instructions.Count;
         private int lastGreedyQuantifierBacktraceLoc = -1;
 
@@ -76,39 +81,57 @@ namespace SimpleRegex
 
         private IEnumerable<int> EmitTryMatchGroupExpression(GroupExpression group, out IEnumerable<int> continuePartial, out int? backtrackFunc)
         {
-            if (group.Count == 1 && !group.IsCaptureGroup)
-                return EmitTryMatchExpression(group.First(), out continuePartial, out backtrackFunc);
-            if (group.Count == 0 && !group.IsCaptureGroup)
-            {
-                continuePartial = Enumerable.Empty<int>();
-                backtrackFunc = null;
-                return Enumerable.Empty<int>();
-            }
-
+            var failureJumps = Enumerable.Empty<int>();
             continuePartial = Enumerable.Empty<int>();
+            ushort groupIndex = ushort.MaxValue;
 
-            var backtracks = new int?[group.Count];
-            for (int i = 0; i < group.Count; i++)
+            if (group.IsCaptureGroup)
             {
-                var lastBt = lastGreedyQuantifierBacktraceLoc;
-                var failure = EmitTryMatchExpression(group[i], out continuePartial, out backtracks[i]);
-                RepairPartialJump(failure, /*onFail*/ lastBt);
+                groupIndex = GroupCount++;
+                Emit(RegexInterpreter.Instruction.StartGroup, groupIndex);
+            }
+
+            if (group.Count == 1)
+            {
+                failureJumps = EmitTryMatchExpression(group.First(), out continuePartial, out backtrackFunc);
+            }
+            else if (group.Count == 0)
+            {
+                backtrackFunc = null;
+            }
+            else
+            {
+                var backtracks = new int?[group.Count];
+                for (int i = 0; i < group.Count; i++)
+                {
+                    var lastBt = lastGreedyQuantifierBacktraceLoc;
+                    var failure = EmitTryMatchExpression(group[i], out continuePartial, out backtracks[i]);
+                    RepairPartialJump(failure, /*onFail*/ lastBt);
+                    RepairPartialJump(continuePartial, Current);
+                }
+
+                var finishedPartial = EmitPartialJump(RegexInterpreter.Instruction.Jump);
+
+                backtrackFunc = Current;
+                for (int i = group.Count - 1; i >= 0; i--)
+                {
+                    var bt = backtracks[i];
+                    if (bt != null)
+                        EmitJump(RegexInterpreter.Instruction.Call, bt.Value);
+                }
+                Emit(RegexInterpreter.Instruction.Return);
+
+                continuePartial = continuePartial.Append(finishedPartial);
+            }
+
+            if (group.IsCaptureGroup)
+            {
                 RepairPartialJump(continuePartial, Current);
+                continuePartial = Enumerable.Empty<int>();
+                Emit(RegexInterpreter.Instruction.EndGroup, groupIndex);
             }
 
-            var finishedPartial = EmitPartialJump(RegexInterpreter.Instruction.Jump);
-
-            backtrackFunc = Current;
-            for (int i = group.Count - 1; i >= 0; i--)
-            {
-                var bt = backtracks[i];
-                if (bt != null)
-                    EmitJump(RegexInterpreter.Instruction.Call, bt.Value);
-            }
-            Emit(RegexInterpreter.Instruction.Return);
-
-            continuePartial = continuePartial.Append(finishedPartial);
-            return Enumerable.Empty<int>();
+            return failureJumps;
         }
 
         private IEnumerable<int> EmitTryMatchCharacterGroup(CharacterGroupExpression group, out IEnumerable<int> continuePartial, out int? backtrackFunc)
