@@ -23,7 +23,7 @@ namespace SimpleRegex
             set => interpreter.groupCount = value;
         }
         private int Current => instructions.Count;
-        private int lastGreedyQuantifierBacktraceLoc = -1;
+        private int lastQuantifierBacktraceLoc = -1;
 
         public RegexCompiler()
         {
@@ -40,7 +40,7 @@ namespace SimpleRegex
             var rejectPos = Current;
             Emit(RegexInterpreter.Instruction.Reject);
             var advanceIterStart = Current;
-            lastGreedyQuantifierBacktraceLoc = advanceIterStart;
+            lastQuantifierBacktraceLoc = advanceIterStart;
             Emit(RegexInterpreter.Instruction.PopPos);
             Emit(RegexInterpreter.Instruction.Advance);
             EmitJump(RegexInterpreter.Instruction.JumpIfOutOfBounds, rejectPos);
@@ -104,7 +104,7 @@ namespace SimpleRegex
                 var backtracks = new int?[group.Count];
                 for (int i = 0; i < group.Count; i++)
                 {
-                    var lastBt = lastGreedyQuantifierBacktraceLoc;
+                    var lastBt = lastQuantifierBacktraceLoc;
                     var failure = EmitTryMatchExpression(group[i], out continuePartial, out backtracks[i]);
                     RepairPartialJump(failure, /*onFail*/ lastBt);
                     RepairPartialJump(continuePartial, Current);
@@ -171,7 +171,7 @@ namespace SimpleRegex
             Emit(RegexInterpreter.Instruction.PushPos);
             var jumpPartial = EmitPartialJump(RegexInterpreter.Instruction.Jump);
 
-            var startLastGreedy = lastGreedyQuantifierBacktraceLoc;
+            var startLastGreedy = lastQuantifierBacktraceLoc;
 
             // emit BacktraceFunc
             var backtraceFuncJumpTargets = new int[alt.Count];
@@ -219,14 +219,14 @@ namespace SimpleRegex
             var tailLastGreedyQuantifiers = new int[alt.Count];
             for (var i = 0; i < alt.Count; i++)
             {
-                lastGreedyQuantifierBacktraceLoc = onBacktraceThrough;
+                lastQuantifierBacktraceLoc = onBacktraceThrough;
                 RepairPartialJump(backtraceThroughContinuePartials[i], Current);
                 var failure = EmitTryMatchExpression(alt[i], out var cont, out var backtrack);
                 var trailingJump = EmitPartialJump(RegexInterpreter.Instruction.Jump);
                 RepairPartialJump(backtraceCallPartials[i], backtrack ?? ifNoBacktrack);
                 RepairPartialJump(failure, onBacktraceThrough);
 
-                tailLastGreedyQuantifiers[i] = lastGreedyQuantifierBacktraceLoc;
+                tailLastGreedyQuantifiers[i] = lastQuantifierBacktraceLoc;
 
                 continuePartial = continuePartial.Concat(cont).Append(trailingJump);
             }
@@ -234,7 +234,7 @@ namespace SimpleRegex
             var onBacktrace = Current;
             EmitSwitch(indexLocal, tailLastGreedyQuantifiers);
             EmitJump(RegexInterpreter.Instruction.Jump, startLastGreedy);
-            lastGreedyQuantifierBacktraceLoc = onBacktrace;
+            lastQuantifierBacktraceLoc = onBacktrace;
 
             return Enumerable.Empty<int>();
         }
@@ -279,30 +279,50 @@ namespace SimpleRegex
             var ifNoBacktrack = Current;
             Emit(RegexInterpreter.Instruction.Return);
 
-            // emit backtrace through func (this is literally copied from ?'s impl, because this does effectively the same thing)
-            var prevGreedy = lastGreedyQuantifierBacktraceLoc;
-            lastGreedyQuantifierBacktraceLoc = Current;
-            var backtraceThroughJumpIfZeroPartial = EmitPartialJumpTriple(RegexInterpreter.Instruction.DecLocalOrPopJump, matchCounterLocal);
-            // count is nonzero ; if this is called, then the content has already fully unwound
-            Emit(RegexInterpreter.Instruction.PopPos);
-            var continuePartialJump = EmitPartialJump(RegexInterpreter.Instruction.Jump);
-            // count was zero and is popped, so jump to the last qualifier
-            RepairPartialJump(backtraceThroughJumpIfZeroPartial, prevGreedy);
+            if (!quant.IsLazy)
+            {
+                // emit backtrace through func (this is literally copied from ?'s impl, because this does effectively the same thing)
+                var prevGreedy = lastQuantifierBacktraceLoc;
+                lastQuantifierBacktraceLoc = Current;
+                var backtraceThroughJumpIfZeroPartial = EmitPartialJumpTriple(RegexInterpreter.Instruction.DecLocalOrPopJump, matchCounterLocal);
+                // count is nonzero ; if this is called, then the content has already fully unwound
+                Emit(RegexInterpreter.Instruction.PopPos);
+                var continuePartialJump = EmitPartialJump(RegexInterpreter.Instruction.Jump);
+                // count was zero and is popped, so jump to the last qualifier
+                RepairPartialJump(backtraceThroughJumpIfZeroPartial, prevGreedy);
 
 
-            RepairPartialJump(jumpPartial, Current);
-            var matchTarget = Current;
-            Emit(RegexInterpreter.Instruction.IncLocal, matchCounterLocal);
-            Emit(RegexInterpreter.Instruction.PushPos);
-            var failed = EmitTryMatchExpression(quant.Target, out var cont, out var backtrack);
-            RepairPartialJump(backtrackCallPartial, backtrack ?? ifNoBacktrack);
-            //RepairPartialJump(callPartial2, backtrack ?? ifNoBacktrack);
-            RepairPartialJump(cont, Current);
-            //Emit(RegexInterpreter.Instruction.IncLocal, matchCounterLocal);
+                RepairPartialJump(jumpPartial, Current);
+                var matchTarget = Current;
+                Emit(RegexInterpreter.Instruction.IncLocal, matchCounterLocal);
+                Emit(RegexInterpreter.Instruction.PushPos);
+                var failed = EmitTryMatchExpression(quant.Target, out var cont, out var backtrack);
+                RepairPartialJump(backtrackCallPartial, backtrack ?? ifNoBacktrack);
+                RepairPartialJump(cont, Current);
 
-            EmitJump(RegexInterpreter.Instruction.Jump, matchTarget);
+                EmitJump(RegexInterpreter.Instruction.Jump, matchTarget);
 
-            continuePartial = failed.Append(continuePartialJump);
+                continuePartial = failed.Append(continuePartialJump);
+            }
+            else
+            {
+                var prevGreedy = lastQuantifierBacktraceLoc;
+                var onMatchFailure = Current;
+                // count is nonzero, so we've already tried to match and it either failed or we need more
+                EmitJump(RegexInterpreter.Instruction.Call, backtrackFunc.Value);
+                EmitJump(RegexInterpreter.Instruction.Jump, prevGreedy);
+
+                // emit backtrace through func, which in this case just tries to add a match
+                lastQuantifierBacktraceLoc = Current;
+                Emit(RegexInterpreter.Instruction.IncLocal, matchCounterLocal);
+                Emit(RegexInterpreter.Instruction.PushPos);
+                var failed = EmitTryMatchExpression(quant.Target, out var cont, out var backtrack);
+                RepairPartialJump(backtrackCallPartial, backtrack ?? ifNoBacktrack);
+                RepairPartialJump(failed, onMatchFailure);
+
+                continuePartial = cont.Append(jumpPartial);
+            }
+
             return Enumerable.Empty<int>();
         }
 
@@ -322,25 +342,45 @@ namespace SimpleRegex
             var ifNoBacktrack = Current;
             Emit(RegexInterpreter.Instruction.Return);
 
-            // emit backtrace through func
-            var prevGreedy = lastGreedyQuantifierBacktraceLoc;
-            lastGreedyQuantifierBacktraceLoc = Current;
-            var backtraceThroughJumpIfZeroPartial = EmitPartialJumpTriple(RegexInterpreter.Instruction.DecLocalOrPopJump, matchCounterLocal);
-            // count is nonzero ; if this is called, then the content has already fully unwound
-            Emit(RegexInterpreter.Instruction.PopPos);
-            var continuePartialJump = EmitPartialJump(RegexInterpreter.Instruction.Jump);
-            // count was zero and is popped, so jump to the last qualifier
-            RepairPartialJump(backtraceThroughJumpIfZeroPartial, prevGreedy);
+            if (!quant.IsLazy)
+            { // the nonlazy form
+                // emit backtrace through func
+                var prevGreedy = lastQuantifierBacktraceLoc;
+                lastQuantifierBacktraceLoc = Current;
+                var backtraceThroughJumpIfZeroPartial = EmitPartialJumpTriple(RegexInterpreter.Instruction.DecLocalOrPopJump, matchCounterLocal);
+                // count is nonzero ; if this is called, then the content has already fully unwound
+                Emit(RegexInterpreter.Instruction.PopPos);
+                var continuePartialJump = EmitPartialJump(RegexInterpreter.Instruction.Jump);
+                // count was zero and is popped, so jump to the last qualifier
+                RepairPartialJump(backtraceThroughJumpIfZeroPartial, prevGreedy);
 
-            RepairPartialJump(jumpPartial, Current);
-            Emit(RegexInterpreter.Instruction.PushPos);
-            // inc on start, so that when processing the body, it follows the completed path
-            Emit(RegexInterpreter.Instruction.IncLocal, matchCounterLocal);
-            var failed = EmitTryMatchExpression(quant.Target, out var cont, out var backtrack);
-            RepairPartialJump(backtrackCallPartial, backtrack ?? ifNoBacktrack);
-            RepairPartialJump(cont, Current);
+                RepairPartialJump(jumpPartial, Current);
+                Emit(RegexInterpreter.Instruction.PushPos);
+                // inc on start, so that when processing the body, it follows the completed path
+                Emit(RegexInterpreter.Instruction.IncLocal, matchCounterLocal);
+                var failed = EmitTryMatchExpression(quant.Target, out var cont, out var backtrack);
+                RepairPartialJump(backtrackCallPartial, backtrack ?? ifNoBacktrack);
 
-            continuePartial = failed.Append(continuePartialJump);
+                continuePartial = failed.Concat(cont).Append(continuePartialJump);
+            }
+            else
+            {
+                // emit backtrace through func
+                var prevGreedy = lastQuantifierBacktraceLoc;
+                lastQuantifierBacktraceLoc = Current;
+                var jumpIfZero = EmitPartialJumpTriple(RegexInterpreter.Instruction.JumpIfLocalZero, matchCounterLocal);
+                // count is nonzero, so we've already tried to match and it either failed or we need more
+                Emit(RegexInterpreter.Instruction.PopLocal, matchCounterLocal);
+                EmitJump(RegexInterpreter.Instruction.Jump, prevGreedy);
+
+                RepairPartialJump(jumpIfZero, Current);
+                Emit(RegexInterpreter.Instruction.PushPos);
+                Emit(RegexInterpreter.Instruction.IncLocal, matchCounterLocal);
+                var failed = EmitTryMatchExpression(quant.Target, out var cont, out var backtrack);
+                RepairPartialJump(backtrackCallPartial, backtrack ?? ifNoBacktrack);
+
+                continuePartial = failed.Concat(cont).Append(jumpPartial);
+            }
 
             return Enumerable.Empty<int>();
         }

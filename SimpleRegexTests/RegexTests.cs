@@ -224,6 +224,9 @@ namespace SimpleRegexTests
         [InlineData(@"^(|a|b)bc$", "bc", true, 0, 2)]
         [InlineData(@"^(|a|b)bc$", "abc", true, 0, 3)]
         [InlineData(@"^(|a|b)bc$", "bbc", true, 0, 3)]
+        [InlineData(@"^[\s]*(.*?)[\s]*$", "abc def", true, 0, 7)]
+        [InlineData(@"^[\s]*(.*?)[\s]*$", "   abc def", true, 0, 10)]
+        [InlineData(@"^[\s]*(.*?)[\s]*$", "   abc def   ", true, 0, 13)]
         public void TryMatch(string regex, string text, bool expect, int start, int len)
         {
             var obj = new Regex(regex);
@@ -234,6 +237,21 @@ namespace SimpleRegexTests
                 Assert.Equal(start, match.Start);
                 Assert.Equal(len, match.Length);
             }
+        }
+
+        [Theory]
+        [InlineData(@"^[\s]*(.*?)[\s]*$", "abc def", 0, 0, "abc def")]
+        [InlineData(@"^[\s]*(.*?)[\s]*$", "   abc def", 0, 3, "abc def")]
+        [InlineData(@"^[\s]*(.*?)[\s]*$", "   abc def   ", 0, 3, "abc def")]
+        public void TryMatchGroup(string regex, string text, int group, int start, string value)
+        {
+            var obj = new Regex(regex);
+            var match = obj.FindMatch(text);
+            Assert.NotNull(match);
+
+            var range = match.Groups[group];
+            Assert.Equal(start, range.Start);
+            Assert.Equal(value, range.SubstringOf(text));
         }
 
         [Theory]
