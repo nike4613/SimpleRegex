@@ -34,7 +34,7 @@ namespace SimpleRegex
                 }
             }
 
-            Exception Invalid() => new ArgumentException("Invalid regex", nameof(text));
+            Exception Invalid(int offs = 0) => new ArgumentException($"Invalid regex at {i + offs}", nameof(text));
 
             bool escape = false;
             bool charGroup = false;
@@ -56,7 +56,19 @@ namespace SimpleRegex
                             continue;
                         case '(':
                             CollapseLast();
-                            exprStack.Push(new GroupExpression { IsOpen = true });
+                            var isCapture = true;
+                            if (Char(1) == '?')
+                            {
+                                if (Char(2) != ':') // TODO: support other types of groups
+                                    throw Invalid(2);
+                                else
+                                {
+                                    isCapture = false;
+                                    Advance();
+                                }
+                                Advance();
+                            }
+                            exprStack.Push(new GroupExpression { IsOpen = true, IsCaptureGroup = isCapture });
                             continue;
                         case ')':
                             {
@@ -67,6 +79,10 @@ namespace SimpleRegex
                                 if (exprStack.Skip(1).FirstOrDefault() is AlternationExpression alt)
                                 { // below the group is an alternation, so add the group
                                     alt.Add(exprStack.Pop());
+                                    if (exprStack.Skip(1).FirstOrDefault() is GroupExpression grou && grou.IsCaptureGroup)
+                                    { // below the alternation is a capture group, so add the alternation
+                                        grou.Add(exprStack.Pop());
+                                    }
                                 }
                                 continue;
                             }
@@ -79,6 +95,11 @@ namespace SimpleRegex
                                 if (top is GroupExpression group)
                                 { // close the group
                                     group.IsOpen = false;
+                                    if (group.IsCaptureGroup)
+                                    { // push a wrapping capture group so that code emission can be simple
+                                        group.IsCaptureGroup = false;
+                                        exprStack.Push(new GroupExpression { IsOpen = false, IsCaptureGroup = true });
+                                    }
                                 }
                                 if (exprStack.Count > 0 && exprStack.Peek() is AlternationExpression alt)
                                 { // we already have an alternation beneath

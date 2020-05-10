@@ -57,6 +57,11 @@ namespace SimpleRegex
     internal sealed class GroupExpression : CompositeExpression
     {
         public bool IsOpen { get; set; } = false;
+
+        public bool IsCaptureGroup { get; set; } = false;
+
+        public override string ToString()
+            => $"({(IsCaptureGroup ? "" : "?:")}{string.Join("", this.Select(e => e.ToString()))})";
     }
 
     internal sealed class AlternationExpression : CompositeExpression 

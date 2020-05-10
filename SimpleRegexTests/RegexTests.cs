@@ -34,6 +34,11 @@ namespace SimpleRegexTests
         [InlineData(@"^abc$")]
         [InlineData(@"a|b|c")]
         [InlineData(@"a(b|bc|cd)c")]
+        [InlineData(@"a(?:bcd)e")]
+        [InlineData(@"(?:ab)+b")]
+        [InlineData(@"(?:ab)*b")]
+        [InlineData(@"(?:ab)?b")]
+        [InlineData(@"a(?:b|bc|cd)c")]
         public void RegexParse(string text)
         {
             _ = new Regex(text);
