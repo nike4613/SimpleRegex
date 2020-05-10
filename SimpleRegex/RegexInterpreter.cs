@@ -47,7 +47,8 @@ namespace SimpleRegex
             var callstack = new Stack<int>();
             var locals = new Stack<int>[localCount];
 
-            var groups = new Region[groupCount];
+            var groups = new Region?[groupCount];
+            var groupsTemp = new Region?[groupCount];
 
             var insns = instructions.ToArray();
             int iptr = 0;
@@ -150,13 +151,13 @@ namespace SimpleRegex
                     case Instruction.StartGroup:
                         {
                             var index = insns[iptr++];
-                            groups[index] = new Region(charPos, 0);
+                            groupsTemp[index] = new Region(charPos, 0);
                             continue;
                         }
                     case Instruction.EndGroup:
                         {
                             var index = insns[iptr++];
-                            groups[index] = Region.FromOffsets(groups[index].Start, charPos);
+                            groups[index] = Region.FromOffsets(groupsTemp[index]!.Start, charPos);
                             continue;
                         }
 

@@ -300,8 +300,8 @@ namespace SimpleRegex
     public class Match
     {
         public Region FullMatch { get; }
-        public Region[] Groups { get; }
-        public Match(Region fullMatch, Region[] groups)
+        public Region?[] Groups { get; }
+        public Match(Region fullMatch, Region?[] groups)
         {
             FullMatch = fullMatch;
             Groups = groups;
