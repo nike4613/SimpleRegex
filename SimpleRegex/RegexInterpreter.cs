@@ -11,7 +11,6 @@ namespace SimpleRegex
         {
             Nop, Comment,
             Match, Reject, Jump, 
-            JumpIfCharIs, JumpIfCharMatches,
             JumpIfCharIsNot, JumpIfCharNotMatches,
             JumpIfNotAtStart, JumpIfNotAtEnd,
             Advance, Backtrack,
@@ -21,12 +20,14 @@ namespace SimpleRegex
             PushLocal, IncLocal, PopLocal, DecLocalOrPopJump,
             JumpIfLocalZero,
             Switch,
+            StartGroup, EndGroup,
         }
 
         private readonly IReadOnlyList<ushort> instructions;
         private readonly IReadOnlyList<CharacterGroupExpression> characterGroups;
         private readonly IReadOnlyList<string> commentStrings;
-        internal int localCount;
+        internal int localCount = 0;
+        internal int groupCount = 0;
 
         public RegexInterpreter(IReadOnlyList<ushort> instructions, IReadOnlyList<CharacterGroupExpression> characterGroups, IReadOnlyList<string> commentStrings)
         {
@@ -35,7 +36,7 @@ namespace SimpleRegex
             this.commentStrings = commentStrings;
         }
 
-        public Match? MatchOn(string text, int startAt)
+        public Region? MatchOn(string text, int startAt)
         {
             if (text is null)
                 throw new ArgumentNullException("String is null", nameof(text));
@@ -43,10 +44,10 @@ namespace SimpleRegex
                 throw new ArgumentException("Start position outside of range of string", nameof(text));
 
             var positions = new Stack<int>();
-
             var callstack = new Stack<int>();
-
             var locals = new Stack<int>[localCount];
+
+            var groups = new Region[groupCount];
 
             var insns = instructions.ToArray();
             int iptr = 0;
@@ -64,7 +65,7 @@ namespace SimpleRegex
                             continue;
                         }
                     case Instruction.Match:
-                        return Match.FromOffsets(positions.Last(), charPos);
+                        return Region.FromOffsets(positions.Last(), charPos);
                     case Instruction.Reject:
                         return null;
                     case Instruction.PushPos:
@@ -113,29 +114,11 @@ namespace SimpleRegex
                                 iptr += target;
                             continue;
                         }
-                    case Instruction.JumpIfCharIs:
-                        {
-                            var compareTo = (char)insns[iptr++];
-                            var target = (short)insns[iptr++];
-                            if (text[charPos] == compareTo)
-                                iptr += target;
-                            continue;
-                        }
                     case Instruction.JumpIfCharIsNot:
                         {
                             var compareTo = (char)insns[iptr++];
                             var target = (short)insns[iptr++];
                             if (text[charPos] != compareTo)
-                                iptr += target;
-                            continue;
-                        }
-                    case Instruction.JumpIfCharMatches:
-                        {
-                            var groupIndex = insns[iptr++];
-                            var target = (short)insns[iptr++];
-                            if (groupIndex >= characterGroups.Count)
-                                throw new InvalidOperationException("Bytecode accesses invalid character group index");
-                            if (MatchesGroup(text[charPos], characterGroups[groupIndex]))
                                 iptr += target;
                             continue;
                         }
@@ -161,6 +144,19 @@ namespace SimpleRegex
                             var target = (short)insns[iptr++];
                             if (charPos < text.Length)
                                 iptr += target;
+                            continue;
+                        }
+
+                    case Instruction.StartGroup:
+                        {
+                            var index = insns[iptr++];
+                            groups[index] = new Region(charPos, 0);
+                            continue;
+                        }
+                    case Instruction.EndGroup:
+                        {
+                            var index = insns[iptr++];
+                            groups[index] = Region.FromOffsets(groups[index].Start, charPos);
                             continue;
                         }
 
@@ -227,7 +223,6 @@ namespace SimpleRegex
                             }
                             continue;
                         }
-
                     default:
                         throw new InvalidOperationException("Unknown opcode");
                 }
@@ -270,9 +265,7 @@ namespace SimpleRegex
                 Instruction.JumpIfNotAtStart => DisassembleJumpInsn(nameof(Instruction.JumpIfNotAtStart), insns, ref pos),
                 Instruction.JumpIfNotAtEnd => DisassembleJumpInsn(nameof(Instruction.JumpIfNotAtEnd), insns, ref pos),
                 Instruction.JumpIfOutOfBounds => DisassembleJumpInsn(nameof(Instruction.JumpIfOutOfBounds), insns, ref pos),
-                Instruction.JumpIfCharIs => DisassembleJumpIfCharIs(nameof(Instruction.JumpIfCharIs), insns, ref pos),
                 Instruction.JumpIfCharIsNot => DisassembleJumpIfCharIs(nameof(Instruction.JumpIfCharIsNot), insns, ref pos),
-                Instruction.JumpIfCharMatches => DisassembleJumpIfCharMatches(nameof(Instruction.JumpIfCharMatches), insns, ref pos),
                 Instruction.JumpIfCharNotMatches => DisassembleJumpIfCharMatches(nameof(Instruction.JumpIfCharNotMatches), insns, ref pos),
                 Instruction.PushLocal => DisassembleLocalInsn(nameof(Instruction.PushLocal) + "\t", insns, ref pos),
                 Instruction.IncLocal => DisassembleLocalInsn(nameof(Instruction.IncLocal) + "\t", insns, ref pos),
@@ -280,9 +273,20 @@ namespace SimpleRegex
                 Instruction.DecLocalOrPopJump => DisassembleLocalJump(nameof(Instruction.DecLocalOrPopJump), insns, ref pos),
                 Instruction.JumpIfLocalZero => DisassembleLocalJump(nameof(Instruction.JumpIfLocalZero), insns, ref pos),
                 Instruction.Switch => DisassembleSwitchInsn(nameof(Instruction.Switch), insns, ref pos),
+                Instruction.StartGroup => DisassembleGroupInsn(nameof(Instruction.StartGroup), insns, ref pos),
+                Instruction.EndGroup => DisassembleGroupInsn(nameof(Instruction.EndGroup), insns, ref pos),
                 _ => "<unknown opcode>",
             };
 
+        private string DisassembleGroupInsn(string name, ushort[] insns, ref int pos)
+        {
+            if (pos >= insns.Length) return Partial(name);
+            var groupIdx = insns[pos++];
+            var stringValue = groupIdx.ToString("X4");
+            if (groupIdx >= groupCount)
+                stringValue += " <invalid group>";
+            return $"{name}\t{stringValue}";
+        }
         private string DisassembleComment(string name, ushort[] insns, ref int pos)
         {
             if (pos >= insns.Length) return Partial(name);

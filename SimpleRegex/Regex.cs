@@ -281,13 +281,13 @@ namespace SimpleRegex
         public bool Matches(string text, int startAt = 0)
             => FindMatch(text, startAt) != null;
 
-        public Match? FindMatch(string text, int startAt = 0)
+        public Region? FindMatch(string text, int startAt = 0)
             => interpreter.MatchOn(text, startAt);
 
-        public IEnumerable<Match?> FindMatches(string text, int startAt = 0)
+        public IEnumerable<Region?> FindMatches(string text, int startAt = 0)
         {
-            var list = new List<Match?>();
-            Match? match;
+            var list = new List<Region?>();
+            Region? match;
             while ((match = FindMatch(text, startAt)) != null)
             {
                 startAt = match.End;
@@ -297,17 +297,31 @@ namespace SimpleRegex
         }
     }
 
-    public class Match
+    public class MatchResult
+    {
+        public Region FullMatch { get; }
+        public Region[] Groups { get; }
+        public MatchResult(Region fullMatch, Region[] groups)
+        {
+            FullMatch = fullMatch;
+            Groups = groups;
+        }
+    }
+
+    public class Region
     {
         public int Start { get; }
         public int Length { get; }
         public int End => Start + Length;
-        public Match(int start, int length)
+
+        public Region(int start, int length)
         {
             Start = start;
             Length = length;
         }
-        public static Match FromOffsets(int start, int end)
-            => new Match(start, end - start);
+        public static Region FromOffsets(int start, int end)
+            => new Region(start, end - start);
+        public string SubstringOf(string text)
+            => text.Substring(Start, Length);
     }
 }

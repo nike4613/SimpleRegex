@@ -76,9 +76,9 @@ namespace SimpleRegex
 
         private IEnumerable<int> EmitTryMatchGroupExpression(GroupExpression group, out IEnumerable<int> continuePartial, out int? backtrackFunc)
         {
-            if (group.Count == 1)
+            if (group.Count == 1 && !group.IsCaptureGroup)
                 return EmitTryMatchExpression(group.First(), out continuePartial, out backtrackFunc);
-            if (group.Count == 0)
+            if (group.Count == 0 && !group.IsCaptureGroup)
             {
                 continuePartial = Enumerable.Empty<int>();
                 backtrackFunc = null;
