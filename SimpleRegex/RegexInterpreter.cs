@@ -13,7 +13,7 @@ namespace SimpleRegex
             Match, Reject, Jump, 
             JumpIfCharIsNot, JumpIfCharNotMatches,
             JumpIfNotAtStart, JumpIfNotAtEnd,
-            Advance, Backtrack,
+            Advance, 
             JumpIfOutOfBounds,
             PushPos, PopPos,
             Call, Return,
@@ -84,11 +84,7 @@ namespace SimpleRegex
                             charPos++;
                             continue;
                         }
-                    case Instruction.Backtrack:
-                        {
-                            charPos--;
-                            continue;
-                        }
+                        
                     case Instruction.Jump:
                         {
                             var target = (short)insns[iptr++];
@@ -257,7 +253,6 @@ namespace SimpleRegex
                 Instruction.Match => nameof(Instruction.Match),
                 Instruction.Reject => nameof(Instruction.Reject),
                 Instruction.Advance => nameof(Instruction.Advance),
-                Instruction.Backtrack => nameof(Instruction.Backtrack),
                 Instruction.PushPos => nameof(Instruction.PushPos),
                 Instruction.PopPos => nameof(Instruction.PopPos),
                 Instruction.Return => nameof(Instruction.Return),

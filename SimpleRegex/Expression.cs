@@ -148,9 +148,9 @@ namespace SimpleRegex
             => rangePairs += new string(new[] { min, (char)(max+1) });
 
         public override bool Matches(char c)
-            => Enumerable.Range(0, rangePairs.Length / 2).Select(i => i * 2)
-                         .Any(i => rangePairs[i] <= c && rangePairs[i + 1] > c) ^ Inverse
-            || moreGroups.Any(g => g.Matches(c));
+            => (Enumerable.Range(0, rangePairs.Length / 2).Select(i => i * 2)
+                         .Any(i => rangePairs[i] <= c && rangePairs[i + 1] > c)
+            || moreGroups.Any(g => g.Matches(c))) ^ Inverse;
 
         public override string ToString()
         {
