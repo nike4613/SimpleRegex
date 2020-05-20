@@ -23,7 +23,7 @@ namespace SimpleRegex
             set => interpreter.groupCount = value;
         }
         private int Current => instructions.Count;
-        private int lastQuantifierBacktraceLoc = -1;
+        private int lastBacktraceLoc = -1;
 
         public RegexCompiler()
         {
@@ -40,7 +40,7 @@ namespace SimpleRegex
             var rejectPos = Current;
             Emit(RegexInterpreter.Instruction.Reject);
             var advanceIterStart = Current;
-            lastQuantifierBacktraceLoc = advanceIterStart;
+            lastBacktraceLoc = advanceIterStart;
             Emit(RegexInterpreter.Instruction.PopPos);
             Emit(RegexInterpreter.Instruction.Advance);
             EmitJump(RegexInterpreter.Instruction.JumpIfOutOfBounds, rejectPos);
@@ -104,7 +104,7 @@ namespace SimpleRegex
                 var backtracks = new int?[group.Count];
                 for (int i = 0; i < group.Count; i++)
                 {
-                    var lastBt = lastQuantifierBacktraceLoc;
+                    var lastBt = lastBacktraceLoc;
                     var failure = EmitTryMatchExpression(group[i], out continuePartial, out backtracks[i]);
                     RepairPartialJump(failure, /*onFail*/ lastBt);
                     RepairPartialJump(continuePartial, Current);
@@ -153,17 +153,6 @@ namespace SimpleRegex
             return new[] { check };
         }
 
-        private IEnumerable<int> EmitTryMatchQuantifier(QuantifierExpression quant, out IEnumerable<int> continuePartial, out int? backtrackFunc)
-        {
-            return quant.Type switch
-            {
-                QuantifierExpression.QuantifierType.Optional => EmitTryMatchOptionalQuantifier(quant, out continuePartial, out backtrackFunc),
-                QuantifierExpression.QuantifierType.ZeroOrMore => EmitTryMatchZeroOrMoreQuantifier(quant, out continuePartial, out backtrackFunc),
-                QuantifierExpression.QuantifierType.OneOrMore => EmitTryMatchOneOrMoreQuantifier(quant, out continuePartial, out backtrackFunc),
-                _ => throw new NotImplementedException(),
-            };
-        }
-
         private IEnumerable<int> EmitTryMatchAlternation(AlternationExpression alt, out IEnumerable<int> continuePartial, out int? backtrackFunc)
         {
             var indexLocal = LocalCount++;
@@ -171,7 +160,7 @@ namespace SimpleRegex
             Emit(RegexInterpreter.Instruction.PushPos);
             var jumpPartial = EmitPartialJump(RegexInterpreter.Instruction.Jump);
 
-            var startLastGreedy = lastQuantifierBacktraceLoc;
+            var startLastGreedy = lastBacktraceLoc;
 
             // emit BacktraceFunc
             var backtraceFuncJumpTargets = new int[alt.Count];
@@ -219,14 +208,14 @@ namespace SimpleRegex
             var tailLastGreedyQuantifiers = new int[alt.Count];
             for (var i = 0; i < alt.Count; i++)
             {
-                lastQuantifierBacktraceLoc = onBacktraceThrough;
+                lastBacktraceLoc = onBacktraceThrough;
                 RepairPartialJump(backtraceThroughContinuePartials[i], Current);
                 var failure = EmitTryMatchExpression(alt[i], out var cont, out var backtrack);
                 var trailingJump = EmitPartialJump(RegexInterpreter.Instruction.Jump);
                 RepairPartialJump(backtraceCallPartials[i], backtrack ?? ifNoBacktrack);
                 RepairPartialJump(failure, onBacktraceThrough);
 
-                tailLastGreedyQuantifiers[i] = lastQuantifierBacktraceLoc;
+                tailLastGreedyQuantifiers[i] = lastBacktraceLoc;
 
                 continuePartial = continuePartial.Concat(cont).Append(trailingJump);
             }
@@ -234,12 +223,21 @@ namespace SimpleRegex
             var onBacktrace = Current;
             EmitSwitch(indexLocal, tailLastGreedyQuantifiers);
             EmitJump(RegexInterpreter.Instruction.Jump, startLastGreedy);
-            lastQuantifierBacktraceLoc = onBacktrace;
+            lastBacktraceLoc = onBacktrace;
 
             return Enumerable.Empty<int>();
         }
 
-        // TODO: handle lazy quantifiers
+        private IEnumerable<int> EmitTryMatchQuantifier(QuantifierExpression quant, out IEnumerable<int> continuePartial, out int? backtrackFunc)
+        {
+            return quant.Type switch
+            {
+                QuantifierExpression.QuantifierType.Optional => EmitTryMatchOptionalQuantifier(quant, out continuePartial, out backtrackFunc),
+                QuantifierExpression.QuantifierType.ZeroOrMore => EmitTryMatchZeroOrMoreQuantifier(quant, out continuePartial, out backtrackFunc),
+                QuantifierExpression.QuantifierType.OneOrMore => EmitTryMatchOneOrMoreQuantifier(quant, out continuePartial, out backtrackFunc),
+                _ => throw new NotImplementedException(),
+            };
+        }
 
         private IEnumerable<int> EmitTryMatchOneOrMoreQuantifier(QuantifierExpression quant, out IEnumerable<int> continuePartial, out int? backtrackFunc)
         {
@@ -282,8 +280,8 @@ namespace SimpleRegex
             if (!quant.IsLazy)
             {
                 // emit backtrace through func (this is literally copied from ?'s impl, because this does effectively the same thing)
-                var prevGreedy = lastQuantifierBacktraceLoc;
-                lastQuantifierBacktraceLoc = Current;
+                var prevGreedy = lastBacktraceLoc;
+                lastBacktraceLoc = Current;
                 var backtraceThroughJumpIfZeroPartial = EmitPartialJumpTriple(RegexInterpreter.Instruction.DecLocalOrPopJump, matchCounterLocal);
                 // count is nonzero ; if this is called, then the content has already fully unwound
                 Emit(RegexInterpreter.Instruction.PopPos);
@@ -306,14 +304,14 @@ namespace SimpleRegex
             }
             else
             {
-                var prevGreedy = lastQuantifierBacktraceLoc;
+                var prevGreedy = lastBacktraceLoc;
                 var onMatchFailure = Current;
                 // count is nonzero, so we've already tried to match and it either failed or we need more
                 EmitJump(RegexInterpreter.Instruction.Call, backtrackFunc.Value);
                 EmitJump(RegexInterpreter.Instruction.Jump, prevGreedy);
 
                 // emit backtrace through func, which in this case just tries to add a match
-                lastQuantifierBacktraceLoc = Current;
+                lastBacktraceLoc = Current;
                 Emit(RegexInterpreter.Instruction.IncLocal, matchCounterLocal);
                 Emit(RegexInterpreter.Instruction.PushPos);
                 var failed = EmitTryMatchExpression(quant.Target, out var cont, out var backtrack);
@@ -345,8 +343,8 @@ namespace SimpleRegex
             if (!quant.IsLazy)
             { // the nonlazy form
                 // emit backtrace through func
-                var prevGreedy = lastQuantifierBacktraceLoc;
-                lastQuantifierBacktraceLoc = Current;
+                var prevGreedy = lastBacktraceLoc;
+                lastBacktraceLoc = Current;
                 var backtraceThroughJumpIfZeroPartial = EmitPartialJumpTriple(RegexInterpreter.Instruction.DecLocalOrPopJump, matchCounterLocal);
                 // count is nonzero ; if this is called, then the content has already fully unwound
                 Emit(RegexInterpreter.Instruction.PopPos);
@@ -366,8 +364,8 @@ namespace SimpleRegex
             else
             {
                 // emit backtrace through func
-                var prevGreedy = lastQuantifierBacktraceLoc;
-                lastQuantifierBacktraceLoc = Current;
+                var prevGreedy = lastBacktraceLoc;
+                lastBacktraceLoc = Current;
                 var jumpIfZero = EmitPartialJumpTriple(RegexInterpreter.Instruction.JumpIfLocalZero, matchCounterLocal);
                 // count is nonzero, so we've already tried to match and it either failed or we need more
                 Emit(RegexInterpreter.Instruction.PopLocal, matchCounterLocal);
